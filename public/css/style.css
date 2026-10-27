@@ -262,60 +262,23 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
   align-items: center;
   justify-content: center;
   z-index: 1;
-  background: radial-gradient(circle, #faf5ec 35%, #e8d9ba 100%);
-  border: 1px solid rgba(168, 50, 45, .15);
+  background: radial-gradient(circle at 50% 40%, #251f19 0%, #110e0b 100%);
+  border: 1px solid rgba(212, 178, 99, .22);
   overflow: hidden;
 }
-.portrait-avatar .pa-drawing-wrap {
+.portrait-avatar .pa-rubbing-wrap {
   position: absolute;
-  inset: -6%;
-  width: 112%;
-  height: 112%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: .95;
 }
-.portrait-avatar .pa-drawing {
+.portrait-avatar .pa-rubbing-svg {
   width: 100%;
   height: 100%;
-}
-.portrait-avatar .pa-seal-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-.portrait-avatar .pa-dynasty {
-  position: absolute;
-  top: 2px;
-  left: 3px;
-  font-family: var(--f-kai);
-  font-size: 9px;
-  color: var(--ink-3);
-  letter-spacing: .05em;
-  line-height: 1;
-}
-}
-.portrait-avatar .pa-char {
-  font-family: var(--f-brush);
-  font-size: 22px;
-  line-height: 1;
-  color: var(--ink);
-}
-.portrait-avatar .pa-badge {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  font-family: var(--f-kai);
-  font-size: 9px;
-  color: #f6ecd9;
-  display: grid;
-  place-items: center;
-  line-height: 1;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  object-fit: cover;
 }
 .portrait-avatar .pa-ring {
   position: absolute;
@@ -724,4 +687,100 @@ body.vintage-lens-mode .view {
   .talk-span { display: none; }
   .msg { max-width: 94%; }
   .msg.ancient { font-size: 17px; }
+}
+
+/* ---------- 金石声律与手卷结集 ---------- */
+.sound-toggle {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.c-handscroll {
+  max-width: 620px;
+  background: radial-gradient(circle at 50% 30%, #fbf5e8 0%, #ecd9b5 100%);
+  border: 2px solid #8a6d48;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .45), inset 0 0 16px rgba(138, 109, 72, .18);
+  border-radius: 8px;
+  padding: 32px 36px;
+  position: relative;
+}
+.scroll-handscroll {
+  font-family: var(--f-kai);
+  color: #2a221b;
+}
+.sh-head {
+  text-align: center;
+  border-bottom: 1.5px solid rgba(138, 109, 72, .35);
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  position: relative;
+}
+.sh-seal {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #a8322d;
+  color: #f7eedb;
+  font-size: 11px;
+  font-weight: 900;
+  border-radius: 2px;
+  letter-spacing: .25em;
+  margin-bottom: 8px;
+}
+.sh-head h3 {
+  font-family: var(--f-brush);
+  font-size: 28px;
+  letter-spacing: .08em;
+  color: #1f1914;
+  margin: 4px 0;
+  font-weight: normal;
+}
+.sh-meta {
+  font-size: 12px;
+  color: #7d654c;
+  letter-spacing: .15em;
+}
+.sh-body {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.scroll-entry {
+  padding: 10px 14px;
+  border-radius: 4px;
+  line-height: 1.85;
+}
+.scroll-entry.ancient {
+  background: rgba(168, 50, 45, .05);
+  border-left: 3px solid #a8322d;
+}
+.scroll-entry.modern {
+  background: rgba(70, 90, 110, .06);
+  border-left: 3px solid #4a6572;
+}
+.se-who {
+  font-size: 11px;
+  letter-spacing: .2em;
+  color: #8c2e28;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.scroll-entry.modern .se-who {
+  color: #3b5a68;
+}
+.se-text {
+  font-size: 16px;
+  white-space: pre-wrap;
+}
+.sh-tail {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(138, 109, 72, .35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #7d654c;
 }

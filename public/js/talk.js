@@ -1,28 +1,33 @@
 // 古今对话空间：跨越千年的星空场域 + agy CLI 流式回答
-import { html, esc, yearsApart } from './util.js';
+import { html, esc, yearsApart, openModal } from './util.js';
 import { startParticles } from './particles.js';
 import { renderPortraitHtml } from './core/portraits.js';
+import { playZither, playChime } from './core/sound.js';
 
 export function renderTalk(root, fig) {
   document.body.classList.add('dark');
+  const isSite = fig.kind === 'site';
   const spanYears = yearsApart(fig.death);
   const view = html(`
     <section class="view talk-view">
       <canvas class="talk-bg"></canvas>
       <div class="talk-ghost">${esc(fig.name)}</div>
       <header class="talk-head">
-        <a class="back-link" href="#/tomb/${fig.id}">返回墓园</a>
+        <div style="display:flex;align-items:center;gap:10px">
+          <a class="back-link" href="#/tomb/${fig.id}">${isSite ? '返回遗址' : '返回墓园'}</a>
+          <button class="btn btn-scroll-export" type="button" title="结集题跋，留存对话手卷" style="padding:4px 12px;font-size:13px;border-color:rgba(212,178,99,.4);color:#e8dcc4">📜 结为手卷</button>
+        </div>
         <div class="talk-span">
           <span>${esc(fig.dynasty)} · ${esc(fig.years.split('—')[1] || fig.years)}</span>
           <i></i>
-          <em>相隔 ${spanYears} 载</em>
+          <em>${isSite ? '千秋胜迹' : `相隔 ${spanYears} 载`}</em>
           <i></i>
           <span>公元 2026</span>
         </div>
         <div class="talk-who">
           <div style="text-align:right">
             <b>${esc(fig.name)}</b>
-            <small>${esc(fig.zi)}</small>
+            <small>${esc(fig.zi || fig.title)}</small>
           </div>
           ${renderPortraitHtml(fig, 'dialogue')}
         </div>
@@ -38,7 +43,7 @@ export function renderTalk(root, fig) {
             ${(fig.questions || []).map((q) => `<button type="button">${esc(q)}</button>`).join('')}
           </div>
           <form class="talk-input">
-            <textarea rows="1" maxlength="500" placeholder="隔着 ${spanYears} 年光阴，对${esc(fig.name)}说句话……"></textarea>
+            <textarea rows="1" maxlength="500" placeholder="${isSite ? `面对千载胜迹，题留感怀之语……` : `隔着 ${spanYears} 年光阴，对${esc(fig.name)}说句话……`}"></textarea>
             <button type="submit" class="send-btn" title="发送">问</button>
           </form>
           <div class="talk-note">由 DeepSeek AI 驱动 · 跨越时空模拟古人神韵</div>
@@ -54,6 +59,7 @@ export function renderTalk(root, fig) {
   const ta = form.querySelector('textarea');
   const sendBtn = form.querySelector('.send-btn');
   const suggests = view.querySelector('.suggests');
+  const exportBtn = view.querySelector('.btn-scroll-export');
 
   const history = [];
   let busy = false;
@@ -95,12 +101,18 @@ export function renderTalk(root, fig) {
     ta.value = '';
     ta.style.height = 'auto';
     appendModern(msg);
+    playZither('shang');
 
     const replyEl = html(`
       <div class="msg ancient">
-        <span class="who">${esc(fig.name)}</span>
-        <span class="txt"></span>
-        <span class="thinking"><span></span><span></span><span></span><em class="thinking-text">故人沉吟中……</em></span>
+        <div class="msg-avatar-col">
+          ${renderPortraitHtml(fig, 'sm')}
+        </div>
+        <div class="msg-content-col">
+          <span class="who">${esc(fig.name)}</span>
+          <span class="txt"></span>
+          <span class="thinking"><span></span><span></span><span></span><em class="thinking-text">${isSite ? '胜迹回响中……' : '故人沉吟中……'}</em></span>
+        </div>
       </div>`);
     inner.appendChild(replyEl);
     scrollBottom();
@@ -269,6 +281,47 @@ ${identityIntro}
     e.preventDefault();
     ask(ta.value);
   };
+
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      if (history.length <= 1) {
+        openModal(`
+          <div style="text-align:center;padding:16px 0">
+            <div class="seal" style="margin:0 auto 12px">空卷</div>
+            <p style="font-family:var(--f-kai);font-size:16px;color:var(--ink)">方才启幕，尚无笔墨流淌。<br/><small style="color:var(--ink-3)">请先与先贤倾心畅谈数语，再行结集题跋手卷。</small></p>
+          </div>
+        `);
+        return;
+      }
+      playChime(660);
+      const items = history.map(h => {
+        const isAnc = h.role === 'assistant';
+        return `
+          <div class="scroll-entry ${isAnc ? 'ancient' : 'modern'}">
+            <div class="se-who">${isAnc ? esc(fig.name) : '后世游人'}</div>
+            <div class="se-text">${esc(h.content)}</div>
+          </div>
+        `;
+      }).join('');
+
+      openModal(`
+        <div class="scroll-handscroll">
+          <div class="sh-head">
+            <span class="sh-seal">千秋怀古</span>
+            <h3>《与${esc(fig.name)}论道手卷》</h3>
+            <p class="sh-meta">${esc(fig.dynasty)} · ${isSite ? '千秋胜迹' : `相隔 ${spanYears} 载`} · 岁次丙午墨记</p>
+          </div>
+          <div class="sh-body">
+            ${items}
+          </div>
+          <div class="sh-tail">
+            <div>后世同道 敬拜并跋</div>
+            <span class="seal">墨宝</span>
+          </div>
+        </div>
+      `, { className: 'c-handscroll' });
+    };
+  }
 
   return () => {
     if (ctrl) ctrl.abort();

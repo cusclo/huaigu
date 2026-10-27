@@ -7,6 +7,7 @@ import { inkTravel } from './transition.js';
 import { drawSiteArchitecture } from './renderers/arch-site.js';
 import { renderPortraitHtml } from './core/portraits.js';
 import { openArchiveModal } from './core/archives.js';
+import { playOfferingSound, playTravelSound } from './core/sound.js';
 
 const VB_W = 1600, VB_H = 900, GROUND = 772, TX = 620, TREE_X = 1110;
 
@@ -760,6 +761,7 @@ export function renderTomb(root, fig) {
     const hint = svgEl('text', { class: 'stele-hint', x: 82, y: -240, 'font-size': 13, fill: night ? '#efe5d0' : '#2a241d', style: 'writing-mode: vertical-rl' }, g);
     hint.textContent = '轻触碑石 · 穿越千年';
     g.addEventListener('click', (e) => {
+      playTravelSound();
       inkTravel({ x: e.clientX, y: e.clientY, text: '穿越千年' }, () => (location.hash = `#/talk/${fig.id}`));
     });
     return g;
@@ -935,6 +937,7 @@ export function renderTomb(root, fig) {
     }
 
     g.addEventListener('click', (e) => {
+      playTravelSound();
       inkTravel({ x: e.clientX, y: e.clientY, text: '时空回响 · 凭吊古迹' }, () => (location.hash = `#/talk/${f.id}`));
     });
     return g;
@@ -1258,14 +1261,14 @@ export function renderTomb(root, fig) {
       <div style="display:flex;align-items:center;gap:18px;margin-bottom:14px">
         <svg viewBox="-26 -54 52 56" style="width:68px;height:68px;background:rgba(31,28,24,.05);border-radius:50%;padding:6px;flex:none">${def.svg}</svg>
         <div>
-          <div class="letter-to">供桌敬奉 · ${esc(def.name)}</div>
+          <div class="letter-to">${isSite ? '胜迹敬献' : '供桌敬奉'} · ${esc(def.name)}</div>
           <div style="font-size:12px;color:var(--ink-3);margin-top:4px;font-family:var(--f-kai)">${esc(def.sub)}</div>
         </div>
       </div>
       <div class="letter-body" style="margin:14px 0 22px;font-size:20px">${esc(off.note)}</div>
       <div class="letter-foot">
-        <div>—— ${esc(off.name)} 敬奉于 ${esc(fig.name)} 墓前<br/><small style="color:var(--ink-3);font-size:12px">${fmtDate(off.ts)}</small></div>
-        <span class="seal">奉</span>
+        <div>—— ${esc(off.name)} ${isSite ? `题奉于 ${esc(fig.name)} 胜迹` : `敬奉于 ${esc(fig.name)} 墓前`}<br/><small style="color:var(--ink-3);font-size:12px">${fmtDate(off.ts)}</small></div>
+        <span class="seal">${isSite ? '献' : '奉'}</span>
       </div>`, { className: 'c-xing' });
   }
 
@@ -1273,17 +1276,17 @@ export function renderTomb(root, fig) {
     let curCat = 'ancient';
     let picked = OFFERINGS[0].id;
     const { modal, close } = openModal(`
-      <h3>摆上供品</h3>
-      <p class="sub">致 ${esc(fig.name)} · 古风雅物或今世美食皆可奉于案前</p>
+      <h3>${isSite ? '敬献信物金石' : '摆上供品'}</h3>
+      <p class="sub">${isSite ? `致 ${esc(fig.name)} · 献上文房清供或金石信物凭吊胜迹` : `致 ${esc(fig.name)} · 古风雅物或今世美食皆可奉于案前`}</p>
       <div class="off-tabs">
         ${OFFERING_CATS.map((c) => `<button type="button" data-cat="${c.id}" class="${c.id === curCat ? 'on' : ''}">${c.name}</button>`).join('')}
       </div>
       <div class="off-grid"></div>
       <div class="off-sub"></div>
       <form class="form" style="margin-top:12px;gap:14px">
-        <label>敬奉附言<input name="note" maxlength="80" placeholder="请先生品尝后世风物……" /></label>
-        <label>署名<input name="name" maxlength="16" placeholder="无名氏" /></label>
-        <button class="btn zhu" type="submit" style="justify-content:center">摆上供桌</button>
+        <label>${isSite ? '凭吊附言' : '敬奉附言'}<input name="note" maxlength="80" placeholder="${isSite ? '仰千秋胜迹，记后世所思……' : '请先生品尝后世风物……'}" /></label>
+        <label>${isSite ? '题款' : '署名'}<input name="name" maxlength="16" placeholder="${isSite ? '怀古游人' : '无名氏'}" /></label>
+        <button class="btn zhu" type="submit" style="justify-content:center">${isSite ? '敬献案前' : '摆上供桌'}</button>
       </form>`);
     const grid = modal.querySelector('.off-grid');
     const subEl = modal.querySelector('.off-sub');
@@ -1324,6 +1327,7 @@ export function renderTomb(root, fig) {
           note: form.note.value,
         });
         offerings.push(offering);
+        playOfferingSound();
         close();
         renderOfferings(offering.id);
         updateCount();
@@ -1359,11 +1363,11 @@ export function renderTomb(root, fig) {
 
   function showCard(card) {
     openModal(`
-      <div class="letter-to">致 ${esc(fig.name)}：</div>
+      <div class="letter-to">${isSite ? '题于 ' : '致 '}${esc(fig.name)}：</div>
       <div class="letter-body">${esc(card.text)}</div>
       <div class="letter-foot">
-        <div>—— ${esc(card.name)}<br/><small style="color:var(--ink-3);font-size:12px">${fmtDate(card.ts)} · 挂于${esc(sc.tree.name)}</small></div>
-        <span class="seal">敬</span>
+        <div>—— ${esc(card.name)}<br/><small style="color:var(--ink-3);font-size:12px">${fmtDate(card.ts)} · ${isSite ? '题留于胜迹屏风' : `挂于${esc(sc.tree.name)}`}</small></div>
+        <span class="seal">${isSite ? '留' : '敬'}</span>
       </div>`, { className: `c-${card.color}` });
   }
 
@@ -1385,11 +1389,11 @@ export function renderTomb(root, fig) {
         <small style="float:right;color:var(--ink-3);font-size:12px">${esc(c.name)}</small>
       </button>`).join('');
     const { modal, close } = openModal(`
-      <h3>敬奉与寄语</h3>
-      <p class="sub">供品 ${offerings.length} 件 · 缅怀卡 ${cards.length} 张</p>
+      <h3>${isSite ? '千秋题壁与胜迹留存' : '敬奉与寄语'}</h3>
+      <p class="sub">${isSite ? `信物 ${offerings.length} 件 · 题壁诗牌 ${cards.length} 首` : `供品 ${offerings.length} 件 · 缅怀卡 ${cards.length} 张`}</p>
       <div style="margin-top:16px;max-height:54vh;overflow:auto">
-        ${offList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:4px 0 6px">【案前供品】</div>${offList}` : ''}
-        ${cardList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:14px 0 6px">【枝头寄语】</div>${cardList}` : ''}
+        ${offList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:4px 0 6px">${isSite ? '【案前信物】' : '【案前供品】'}</div>${offList}` : ''}
+        ${cardList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:14px 0 6px">${isSite ? '【题壁诗牌】' : '【枝头寄语】'}</div>${cardList}` : ''}
       </div>`);
     modal.querySelectorAll('.all-item').forEach((b) => (b.onclick = () => { close(); setTimeout(() => showCard(cards.find((c) => c.id === b.dataset.id)), 260); }));
     modal.querySelectorAll('.all-off').forEach((b) => (b.onclick = () => { close(); setTimeout(() => showOffering(offerings.find((o) => o.id === b.dataset.id)), 260); }));
@@ -1398,16 +1402,16 @@ export function renderTomb(root, fig) {
   function openCardForm() {
     let color = 'zhu';
     const { modal, close } = openModal(`
-      <h3>寄一纸思念</h3>
-      <p class="sub">致 ${esc(fig.name)} · 将挂于墓旁${esc(sc.tree.name)}</p>
+      <h3>${isSite ? '题壁抒怀寄语' : '寄一纸思念'}</h3>
+      <p class="sub">${isSite ? `题于 ${esc(fig.name)} · 诗牌将悬于胜迹题壁屏风` : `致 ${esc(fig.name)} · 将挂于墓旁${esc(sc.tree.name)}`}</p>
       <form class="form">
-        <label>寄语<textarea name="text" maxlength="140" placeholder="想对${esc(fig.name)}说些什么……" required></textarea></label>
-        <label>署名<input name="name" maxlength="16" placeholder="无名氏" /></label>
+        <label>${isSite ? '题壁诗词 / 凭吊感怀' : '寄语'}<textarea name="text" maxlength="140" placeholder="${isSite ? `登临${esc(fig.name)}，怀古感赋……` : `想对${esc(fig.name)}说些什么……`}" required></textarea></label>
+        <label>${isSite ? '题款署名' : '署名'}<input name="name" maxlength="16" placeholder="${isSite ? '江南过客' : '无名氏'}" /></label>
         <div class="form-foot">
           <div class="swatches">${Object.entries(CARD_COLORS).map(([k, v]) => `<button type="button" data-c="${k}" title="${v.name}" style="background:${v.fill}" class="${k === 'zhu' ? 'on' : ''}"></button>`).join('')}</div>
           <span class="counter">0 / 140</span>
         </div>
-        <button class="btn zhu" type="submit" style="justify-content:center">挂上枝头</button>
+        <button class="btn zhu" type="submit" style="justify-content:center">${isSite ? '题上诗壁' : '挂上枝头'}</button>
       </form>`);
     const form = modal.querySelector('form');
     const ta = form.text;
@@ -1421,15 +1425,16 @@ export function renderTomb(root, fig) {
       e.preventDefault();
       if (!ta.value.trim()) return ta.focus();
       const btn = form.querySelector('[type=submit]');
-      btn.disabled = true; btn.textContent = '正在挂上……';
+      btn.disabled = true; btn.textContent = isSite ? '正在题壁……' : '正在挂上……';
       try {
         const { card } = await api.addCard({ figureId: fig.id, name: form.name.value, text: ta.value, color });
         cards.push(card);
+        playOfferingSound();
         close();
         renderTags(card.id);
         updateCount();
       } catch (err) {
-        btn.disabled = false; btn.textContent = err.message || '挂载失败，再试一次';
+        btn.disabled = false; btn.textContent = err.message || (isSite ? '题留失败，再试一次' : '挂载失败，再试一次');
       }
     };
   }

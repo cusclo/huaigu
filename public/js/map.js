@@ -3,6 +3,7 @@ import { ENTITIES, ONLY_FIGURES, ONLY_SITES, ERAS, FIGURE_ROLES, SITE_ROLES, ROL
 import { project } from './core/spatial.js';
 import { svgEl, html, esc, api } from './util.js';
 import { renderPortraitHtml } from './core/portraits.js';
+import { isSoundEnabled, toggleSound, playChime, playZither } from './core/sound.js';
 
 // 历史水系（黄河、长江、淮河、珠江）
 const RIVERS = {
@@ -151,6 +152,7 @@ export function renderMap(root) {
         <nav class="era-bar" aria-label="历史朝代筛选"></nav>
       </div>
       <div class="map-tools">
+        <button class="icon-btn sound-toggle" title="金石声律切换"><span class="sound-icon">${isSoundEnabled() ? '🎵' : '🔇'}</span></button>
         <button class="icon-btn" data-z="in" title="放大">＋</button>
         <button class="icon-btn" data-z="out" title="缩小">－</button>
         <button class="icon-btn" data-z="reset" title="复位">◎</button>
@@ -473,6 +475,15 @@ export function renderMap(root) {
   });
   svg.addEventListener('click', () => !moved && closePop());
 
+  const soundBtn = view.querySelector('.sound-toggle');
+  if (soundBtn) {
+    soundBtn.onclick = () => {
+      const on = toggleSound();
+      soundBtn.querySelector('.sound-icon').textContent = on ? '🎵' : '🔇';
+      soundBtn.title = on ? '金石声律已开' : '金石声律已静音';
+    };
+  }
+
   view.querySelector('.map-tools').addEventListener('click', (e) => {
     const z = e.target.closest('button')?.dataset.z;
     if (z === 'in') zoomAt(W() / 2, H() / 2, 1.6, true);
@@ -610,6 +621,7 @@ export function renderMap(root) {
       btn.onclick = () => {
         const fig = ENTITIES.find((f) => f.id === btn.dataset.fid);
         if (!fig) return;
+        playZither('jiao');
         if (window.innerWidth <= 760) {
           drawer.classList.remove('open');
         }
@@ -624,6 +636,7 @@ export function renderMap(root) {
   // 人物画像 / 古迹胜迹浮卡
   function openPop(f, g) {
     closePop();
+    playChime(f.kind === 'site' ? 440 : 523.25);
     markers.forEach((m) => m.g.classList.toggle('active', m.g === g));
     layout();
     const roleColor = ROLE_META[f.role]?.color || '#a8322d';
