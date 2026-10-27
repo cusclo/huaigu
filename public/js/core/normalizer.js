@@ -1,4 +1,5 @@
 // 核心标准化与规制映射模块：将先贤人物与名胜古迹统一转化为标准渲染实体契约
+import { getPortraitInfo } from './portraits.js';
 const TREE_PRESETS = {
   pine:    { name: '苍松', kind: 'pine',    leaf: '#2f4b38' },
   cypress: { name: '古柏', kind: 'cypress', leaf: '#2d4732' },
@@ -207,5 +208,6 @@ export function normalizeEntity(raw) {
     deeds,
     works,
     scene,
+    portrait: getPortraitInfo({ ...raw, kind }),
   };
 }

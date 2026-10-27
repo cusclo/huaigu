@@ -5,6 +5,7 @@ import { drawTree } from './tree.js';
 import { startParticles } from './particles.js';
 import { inkTravel } from './transition.js';
 import { drawSiteArchitecture } from './renderers/arch-site.js';
+import { renderPortraitHtml } from './core/portraits.js';
 
 const VB_W = 1600, VB_H = 900, GROUND = 772, TX = 620, TREE_X = 1110;
 
@@ -25,7 +26,10 @@ export function renderTomb(root, fig) {
         <a class="back-link" href="#/life/${fig.id}">${isSite ? '遗址考据 · 诗文' : '生平 · 作品'}</a>
       </header>
       <div class="tomb-title">
-        <h1>${esc(fig.name)}</h1>
+        <div class="tt-heading">
+          ${renderPortraitHtml(fig, 'sm', 'tt-avatar')}
+          <h1>${esc(fig.name)}</h1>
+        </div>
         <p>${esc(fig.dynasty)} · ${esc(fig.years)} · ${esc(fig.role || '')}</p>
         <p class="tt-tree">${esc(fig.place)} · ${esc(sc.archLabel || '古迹规制')} · ${isSite ? '古迹旁' : '墓旁'}${esc(sc.tree.name)}</p>
       </div>

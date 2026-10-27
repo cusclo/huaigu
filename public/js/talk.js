@@ -1,6 +1,7 @@
 // 古今对话空间：跨越千年的星空场域 + agy CLI 流式回答
 import { html, esc, yearsApart } from './util.js';
 import { startParticles } from './particles.js';
+import { renderPortraitHtml } from './core/portraits.js';
 
 export function renderTalk(root, fig) {
   document.body.classList.add('dark');
@@ -23,7 +24,7 @@ export function renderTalk(root, fig) {
             <b>${esc(fig.name)}</b>
             <small>${esc(fig.zi)}</small>
           </div>
-          <span class="seal">${esc(fig.name[0])}</span>
+          ${renderPortraitHtml(fig, 'dialogue')}
         </div>
       </header>
 
@@ -61,7 +62,16 @@ export function renderTalk(root, fig) {
   const scrollBottom = () => { logEl.scrollTop = logEl.scrollHeight; };
 
   function appendAncient(text) {
-    const el = html(`<div class="msg ancient"><span class="who">${esc(fig.name)}</span><span class="txt">${esc(text)}</span></div>`);
+    const el = html(`
+      <div class="msg ancient">
+        <div class="msg-avatar-col">
+          ${renderPortraitHtml(fig, 'sm')}
+        </div>
+        <div class="msg-content-col">
+          <span class="who">${esc(fig.name)}</span>
+          <span class="txt">${esc(text)}</span>
+        </div>
+      </div>`);
     inner.appendChild(el);
     scrollBottom();
     return el;
