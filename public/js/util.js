@@ -58,26 +58,71 @@ export function openModal(inner, { className = '', onClose } = {}) {
 
 export const api = {
   async cards(id) {
-    const r = await fetch(`/api/cards?figure=${encodeURIComponent(id)}`);
-    return r.json();
+    try {
+      const r = await fetch(`/api/cards?figure=${encodeURIComponent(id)}`);
+      if (r.ok) return await r.json();
+    } catch {}
+    const local = JSON.parse(localStorage.getItem('huaigu_data_' + id) || '{}');
+    return {
+      cards: local.cards || [],
+      offerings: local.offerings || [],
+      incense: local.incense || 0,
+    };
   },
   async counts() {
-    const r = await fetch('/api/cards');
-    return r.json();
+    try {
+      const r = await fetch('/api/cards');
+      if (r.ok) return await r.json();
+    } catch {}
+    return { counts: {}, offeringCounts: {} };
   },
   async addCard(payload) {
-    const r = await fetch('/api/cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!r.ok) throw new Error((await r.json()).error || '挂载失败');
-    return r.json();
+    try {
+      const r = await fetch('/api/cards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (r.ok) return await r.json();
+    } catch {}
+    const id = payload.figureId;
+    const local = JSON.parse(localStorage.getItem('huaigu_data_' + id) || '{"cards":[],"offerings":[],"incense":0}');
+    const card = {
+      id: Math.random().toString(36).slice(2, 10),
+      name: payload.name || '无名氏',
+      text: payload.text,
+      color: payload.color || 'zhu',
+      ts: Date.now(),
+    };
+    local.cards = local.cards || [];
+    local.cards.push(card);
+    localStorage.setItem('huaigu_data_' + id, JSON.stringify(local));
+    return { card };
   },
   async addOffering(payload) {
-    const r = await fetch('/api/offerings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!r.ok) throw new Error((await r.json()).error || '奉上失败');
-    return r.json();
+    try {
+      const r = await fetch('/api/offerings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (r.ok) return await r.json();
+    } catch {}
+    const id = payload.figureId;
+    const local = JSON.parse(localStorage.getItem('huaigu_data_' + id) || '{"cards":[],"offerings":[],"incense":0}');
+    const offering = {
+      id: Math.random().toString(36).slice(2, 10),
+      itemId: payload.itemId,
+      name: payload.name || '无名氏',
+      note: payload.note || '聊表寸心',
+      ts: Date.now(),
+    };
+    local.offerings = local.offerings || [];
+    local.offerings.push(offering);
+    localStorage.setItem('huaigu_data_' + id, JSON.stringify(local));
+    return { offering };
   },
   async incense(id) {
-    const r = await fetch('/api/incense', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ figureId: id }) });
-    return r.json();
+    try {
+      const r = await fetch('/api/incense', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ figureId: id }) });
+      if (r.ok) return await r.json();
+    } catch {}
+    const local = JSON.parse(localStorage.getItem('huaigu_data_' + id) || '{"cards":[],"offerings":[],"incense":0}');
+    local.incense = (local.incense || 0) + 1;
+    localStorage.setItem('huaigu_data_' + id, JSON.stringify(local));
+    return { incense: local.incense };
   },
 };
 

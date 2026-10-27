@@ -18,6 +18,8 @@ const DATA_DIR = path.join(__dirname, 'data');
 const CARDS_FILE = path.join(DATA_DIR, 'cards.json');
 const OFFERINGS_FILE = path.join(DATA_DIR, 'offerings.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || 'sk-492f9dad3fa84902a0f9a4b54cd9a3d1';
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 const AGY_BIN = process.env.AGY_BIN || 'agy';
 const AGY_MODEL = process.env.HUAIGU_MODEL || 'gemini-3.8-flash-low';
 const AGY_CWD = path.join(os.tmpdir(), 'huaigu-agy-sandbox');
@@ -130,6 +132,64 @@ async function handleChat(req, res) {
   });
   const emit = (obj) => res.write(JSON.stringify(obj) + '\n');
 
+  let gotText = false;
+  let finished = false;
+  const finish = (fallback) => {
+    if (finished) return;
+    finished = true;
+    if (fallback && !gotText) emit({ delta: fallbackReply(fig), fallback: true });
+    emit({ done: true });
+    res.end();
+  };
+
+  if (DEEPSEEK_API_KEY) {
+    try {
+      const prompt = buildPrompt(fig, history, message);
+      const dsRes = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: DEEPSEEK_MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          stream: true,
+        }),
+      });
+
+      if (!dsRes.ok) throw new Error(`DeepSeek API error ${dsRes.status}`);
+      const reader = dsRes.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line.startsWith('data:')) continue;
+          const dataStr = line.replace(/^data:\s*/, '');
+          if (dataStr === '[DONE]') break;
+          try {
+            const ev = JSON.parse(dataStr);
+            const delta = ev.choices?.[0]?.delta?.content;
+            if (delta) {
+              gotText = true;
+              emit({ delta });
+            }
+          } catch {}
+        }
+      }
+      return finish(false);
+    } catch (e) {
+      console.error('[chat] deepseek error:', e.message);
+      return finish(true);
+    }
+  }
+
   await fsp.mkdir(AGY_CWD, { recursive: true });
   const args = [
     '-p', buildPrompt(fig, history, message),
@@ -141,16 +201,6 @@ async function handleChat(req, res) {
   ];
 
   let child;
-  let gotText = false;
-  let finished = false;
-  const finish = (fallback) => {
-    if (finished) return;
-    finished = true;
-    if (fallback && !gotText) emit({ delta: fallbackReply(fig), fallback: true });
-    emit({ done: true });
-    res.end();
-  };
-
   try {
     child = spawn(AGY_BIN, args, { cwd: AGY_CWD, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (e) {
