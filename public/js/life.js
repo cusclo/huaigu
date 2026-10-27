@@ -1,10 +1,12 @@
-// 生平详情页：立传 · 纪年 · 传世诗文 · 历史画像
+// 生平详情页：立传 · 纪年 · 传世诗文 · 历史画像 · 金石影痕
 import { html, esc } from './util.js';
 import { inkTravel } from './transition.js';
 import { renderPortraitHtml } from './core/portraits.js';
+import { getArchiveItem, openArchiveModal } from './core/archives.js';
 
 export function renderLife(root, fig) {
   const isSite = fig.kind === 'site';
+  const archiveItem = getArchiveItem(fig.id);
   const view = html(`
     <section class="view life-view">
       <header class="top-bar">
@@ -53,17 +55,40 @@ export function renderLife(root, fig) {
             </div>
           </section>
 
+          ${archiveItem ? `
+            <section class="life-archives-section">
+              <h2>${isSite ? '千秋遗痕 · 百年旧影与金石测绘' : '神道存影 · 陵寝石像生与历史旧影'}</h2>
+              <div class="archive-preview-card">
+                <div class="apc-head">
+                  <span class="seal apc-tag">${esc(archiveItem.category)}</span>
+                  <div class="apc-title">${esc(archiveItem.title)}</div>
+                  <div class="apc-era">${esc(archiveItem.era)} · ${esc(archiveItem.source)}</div>
+                </div>
+                <div class="apc-statues"><b>【${isSite ? '出土规制与遗存' : '神道石像生规制'}】</b>${esc(archiveItem.statues)}</div>
+                <p class="apc-desc">${esc(archiveItem.desc)}</p>
+                <div class="apc-actions">
+                  <button class="btn btn-view-archive" type="button">📷 展开银盐湿版历史旧影与考据图志</button>
+                </div>
+              </div>
+            </section>
+          ` : ''}
+
           <section class="life-cta">
-            <a class="btn zhu" href="#/tomb/${fig.id}">${isSite ? '凭吊遗址 · 敬献信物' : '拜谒墓园 · 敬奉供品'}</a>
-            <button class="btn" data-go-talk>轻触碑石 · 古今对话</button>
+            <a class="btn zhu" href="#/tomb/${fig.id}">${isSite ? '凭吊遗址 · 题壁抒怀' : '拜谒墓园 · 敬奉供品'}</a>
+            <button class="btn" data-go-talk>${isSite ? '轻触碑铭 · 时空回响' : '轻触碑石 · 古今对话'}</button>
           </section>
         </div>
       </div>
     </section>`);
   root.appendChild(view);
 
+  const archiveBtn = view.querySelector('.btn-view-archive');
+  if (archiveBtn) {
+    archiveBtn.onclick = () => openArchiveModal(fig);
+  }
+
   view.querySelector('[data-go-talk]').addEventListener('click', (e) => {
-    inkTravel({ x: e.clientX, y: e.clientY, text: '穿越千年' }, () => (location.hash = `#/talk/${fig.id}`));
+    inkTravel({ x: e.clientX, y: e.clientY, text: isSite ? '时空回响' : '穿越千年' }, () => (location.hash = `#/talk/${fig.id}`));
   });
   return () => {};
 }

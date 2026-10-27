@@ -201,7 +201,159 @@ export const SITE_PORTRAITS = {
   site_nanhai1: { file: 'Nanhai_No._1_shipwreck.jpg', title: '南海一号南宋远洋古沉船', author: '海上丝绸之路水下考古' },
 };
 
+const FEMALE_IDS = new Set([
+  'xishi', 'wangzhaojun', 'caiwenji', 'mulan', 'wensheng', 'liqingzhao', 'wuzetian', 'huangdaopo'
+]);
+
+const MILITARY_IDS = new Set([
+  'sunwu', 'baiqi', 'lianpo', 'limu', 'jingke', 'mengtian', 'xiangyu', 'hanxin', 'weiqing',
+  'huoqubing', 'liuling', 'banchao', 'guanyu', 'zhouyu', 'lijin', 'guozhiyi', 'yuefei', 'qijiguang'
+]);
+
+/**
+ * 经典古籍金石线描画谱矢量引擎
+ * 当网络未就绪或离线时，即时生成高精度的历代冠冕、甲胄、衣褶与器物线描古典造像
+ */
+function renderArchetypeSvg(entity, roleColor) {
+  const isSite = entity.kind === 'site';
+  const id = entity.id;
+  const role = entity.role;
+
+  if (isSite) {
+    if (role === '古战场遗址') {
+      return `
+        <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+          <!-- 古战场烽火台与战旗 -->
+          <polygon points="18,88 28,48 72,48 82,88" fill="#383028" stroke="#1d1915" stroke-width="1.5" />
+          <rect x="34" y="38" width="32" height="10" fill="#4d4237" stroke="#1d1915" stroke-width="1" />
+          <line x1="68" y1="48" x2="68" y2="16" stroke="#1d1915" stroke-width="2.5" />
+          <polygon points="68,16 92,26 68,36" fill="${roleColor}" opacity="0.9" />
+          <path d="M42 38 Q50 18 50 12 Q58 24 58 38" fill="#e85a26" opacity="0.85" />
+        </svg>
+      `;
+    }
+    if (role === '建筑宫殿遗址') {
+      return `
+        <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+          <!-- 巍峨宫阙飞檐金顶 -->
+          <path d="M12 44 Q50 34 88 44 L80 34 Q50 20 20 34 Z" fill="#2d2822" stroke="#1c1916" stroke-width="1.5" />
+          <path d="M26 66 Q50 56 74 66 L68 56 Q50 46 32 56 Z" fill="#3a342c" stroke="#1c1916" stroke-width="1.2" />
+          <polygon points="22,90 28,66 72,66 78,90" fill="#4a4237" />
+          <rect x="42" y="70" width="16" height="20" rx="1" fill="#1c1916" />
+          <line x1="34" y1="66" x2="34" y2="90" stroke="#8a3028" stroke-width="3" />
+          <line x1="66" y1="66" x2="66" y2="90" stroke="#8a3028" stroke-width="3" />
+        </svg>
+      `;
+    }
+    // 考古文明（青铜鼎与玉琮）
+    return `
+      <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+        <!-- 殷商西周青铜鼎重器 -->
+        <ellipse cx="50" cy="52" rx="30" ry="20" fill="#2d4237" stroke="#18241e" stroke-width="1.5" />
+        <rect x="24" y="32" width="52" height="18" rx="2" fill="#3e594b" stroke="#18241e" stroke-width="1.2" />
+        <rect x="28" y="22" width="6" height="12" fill="#2d4237" stroke="#18241e" stroke-width="1" />
+        <rect x="66" y="22" width="6" height="12" fill="#2d4237" stroke="#18241e" stroke-width="1" />
+        <polygon points="32,70 28,88 38,88 40,70" fill="#18241e" />
+        <polygon points="68,70 62,88 72,88 70,70" fill="#18241e" />
+        <circle cx="50" cy="41" r="5" fill="none" stroke="#d4af37" stroke-width="1.2" />
+      </svg>
+    `;
+  }
+
+  // 人物造像线描
+  if (FEMALE_IDS.has(id)) {
+    // 巾帼红颜：云髻步摇、披帛交领
+    return `
+      <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+        <!-- 发髻与步摇 -->
+        <circle cx="50" cy="30" r="16" fill="#1c1815" />
+        <path d="M42 22 Q50 10 58 22 Q66 16 68 26 Q50 20 32 26 Z" fill="#14110e" />
+        <line x1="64" y1="18" x2="74" y2="12" stroke="#d4b263" stroke-width="1.5" />
+        <circle cx="76" cy="11" r="2.5" fill="#ab342c" />
+        <!-- 面庞 -->
+        <path d="M40 34 Q50 52 60 34 Z" fill="#faebd7" stroke="#332c25" stroke-width="0.8" />
+        <!-- 云肩大袖 -->
+        <path d="M22 88 Q32 54 44 48 L56 48 Q68 54 78 88 Z" fill="#44323d" stroke="#1c1815" stroke-width="1.2" />
+        <path d="M44 48 L50 64 L56 48" stroke="#d4b263" stroke-width="1.2" fill="none" />
+      </svg>
+    `;
+  }
+
+  if (role === '帝王霸主') {
+    // 帝王：平天冠冕旒、方领龙袍
+    return `
+      <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+        <!-- 冕板（平天冠） -->
+        <polygon points="24,18 76,18 80,24 20,24" fill="#181512" stroke="#d4af37" stroke-width="1" />
+        <!-- 垂旒（珠串） -->
+        <line x1="28" y1="24" x2="28" y2="34" stroke="#d4af37" stroke-dasharray="1.5 1.5" stroke-width="1.2" />
+        <line x1="38" y1="24" x2="38" y2="36" stroke="#d4af37" stroke-dasharray="1.5 1.5" stroke-width="1.2" />
+        <line x1="50" y1="24" x2="50" y2="36" stroke="#d4af37" stroke-dasharray="1.5 1.5" stroke-width="1.2" />
+        <line x1="62" y1="24" x2="62" y2="36" stroke="#d4af37" stroke-dasharray="1.5 1.5" stroke-width="1.2" />
+        <line x1="72" y1="24" x2="72" y2="34" stroke="#d4af37" stroke-dasharray="1.5 1.5" stroke-width="1.2" />
+        <!-- 威严面容与长髯 -->
+        <rect x="42" y="28" width="16" height="18" rx="2" fill="#faebd7" />
+        <path d="M42 42 Q50 66 58 42 Z" fill="#181512" />
+        <!-- 龙袍广袖 -->
+        <path d="M16 88 L32 50 L68 50 L84 88 Z" fill="#4d3b27" stroke="#181512" stroke-width="1.4" />
+        <circle cx="50" cy="62" r="7" fill="none" stroke="#d4af37" stroke-width="1.2" />
+      </svg>
+    `;
+  }
+
+  if (MILITARY_IDS.has(id)) {
+    // 武将：凤翅铁兜鍪、明光铠、英雄颔
+    return `
+      <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+        <!-- 铁兜鍪盔顶与红缨 -->
+        <path d="M38 32 Q50 14 62 32 Z" fill="#2d3038" stroke="#14161a" stroke-width="1.2" />
+        <path d="M48 16 Q50 6 56 12 Q52 18 48 16" fill="#ab342c" />
+        <!-- 护颊与面部 -->
+        <polygon points="34,32 38,46 62,46 66,32" fill="#202329" />
+        <rect x="42" y="32" width="16" height="12" fill="#faebd7" />
+        <!-- 连腮短须 -->
+        <path d="M41 42 Q50 54 59 42" stroke="#14161a" stroke-width="2" fill="none" />
+        <!-- 明光铠甲与护心镜 -->
+        <path d="M18 88 L32 50 L68 50 L82 88 Z" fill="#3a404c" stroke="#14161a" stroke-width="1.4" />
+        <circle cx="42" cy="64" r="6" fill="#788191" stroke="#d4af37" stroke-width="1" />
+        <circle cx="58" cy="64" r="6" fill="#788191" stroke="#d4af37" stroke-width="1" />
+      </svg>
+    `;
+  }
+
+  if (role === '圣贤哲人') {
+    // 圣贤：深衣高冠、抱拳拱手、五络长须
+    return `
+      <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+        <!-- 高山冠 -->
+        <polygon points="42,16 58,16 62,28 38,28" fill="#2a2520" stroke="#181512" stroke-width="1" />
+        <rect x="42" y="28" width="16" height="16" rx="2" fill="#fcf3e6" />
+        <!-- 飘逸长须 -->
+        <path d="M42 42 Q50 72 58 42 Z" fill="#1c1916" />
+        <!-- 拱手长袖深衣 -->
+        <path d="M18 88 Q32 52 44 48 L56 48 Q68 52 82 88 Z" fill="#3f4a40" stroke="#1c1916" stroke-width="1.4" />
+        <ellipse cx="50" cy="65" rx="14" ry="7" fill="#2d352e" stroke="#d4af37" stroke-width="1" />
+      </svg>
+    `;
+  }
+
+  // 文人、奇人、起义豪杰（默认士人风骨）
+  return `
+    <svg viewBox="0 0 100 100" class="pa-drawing" aria-hidden="true">
+      <!-- 东坡巾 / 软脚幞头 -->
+      <path d="M38 28 L40 16 Q50 14 60 16 L62 28 Z" fill="#22201d" stroke="#141210" stroke-width="1" />
+      <!-- 面容与雅致三绺须 -->
+      <rect x="42" y="28" width="16" height="16" rx="2" fill="#fbf2e3" />
+      <path d="M44 42 Q50 62 56 42" stroke="#141210" stroke-width="1.8" fill="none" />
+      <!-- 宽袍大袖 -->
+      <path d="M18 88 Q32 52 44 48 L56 48 Q68 52 82 88 Z" fill="#463e52" stroke="#141210" stroke-width="1.4" />
+      <path d="M44 48 L50 66 L56 48" stroke="#d4b263" stroke-width="1.2" fill="none" />
+    </svg>
+  `;
+}
+
 export function getPortraitInfo(entity) {
+
   if (!entity) return null;
   const isSite = entity.kind === 'site';
   const meta = isSite ? SITE_PORTRAITS[entity.id] : FIGURE_PORTRAITS[entity.id];
@@ -251,9 +403,13 @@ export function renderPortraitHtml(entity, size = 'md', extraClass = '') {
              onerror="this.style.display='none';this.parentElement.classList.add('pa-fallback-only')" />
       ` : ''}
       <div class="pa-fallback" style="--role-color:${roleColor}" aria-hidden="true">
-        <span class="pa-dynasty">${esc(dynasty)}</span>
-        <span class="pa-char">${esc(char)}</span>
-        <span class="pa-badge" style="background:${roleColor}">${esc(badge)}</span>
+        <div class="pa-drawing-wrap">
+          ${renderArchetypeSvg(entity, roleColor)}
+        </div>
+        <div class="pa-seal-layer">
+          <span class="pa-dynasty">${esc(dynasty)}</span>
+          <span class="pa-badge" style="background:${roleColor}">${esc(badge)}</span>
+        </div>
       </div>
       <div class="pa-ring" aria-hidden="true"></div>
     </div>

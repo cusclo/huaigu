@@ -6,6 +6,7 @@ import { startParticles } from './particles.js';
 import { inkTravel } from './transition.js';
 import { drawSiteArchitecture } from './renderers/arch-site.js';
 import { renderPortraitHtml } from './core/portraits.js';
+import { openArchiveModal } from './core/archives.js';
 
 const VB_W = 1600, VB_H = 900, GROUND = 772, TX = 620, TREE_X = 1110;
 
@@ -31,14 +32,15 @@ export function renderTomb(root, fig) {
           <h1>${esc(fig.name)}</h1>
         </div>
         <p>${esc(fig.dynasty)} · ${esc(fig.years)} · ${esc(fig.role || '')}</p>
-        <p class="tt-tree">${esc(fig.place)} · ${esc(sc.archLabel || '古迹规制')} · ${isSite ? '古迹旁' : '墓旁'}${esc(sc.tree.name)}</p>
+        <p class="tt-tree">${esc(fig.place)} · ${esc(sc.archLabel || '历史胜迹')} · ${isSite ? '胜迹题壁抒怀' : '墓旁' + esc(sc.tree.name)}</p>
       </div>
       <div class="tomb-count"></div>
       <div class="tomb-actions">
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="incense">${isSite ? '敬一炷清香' : '上一炷香'}</button>
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="offering">${isSite ? '敬献信物' : '摆上供品'}</button>
-        <button class="btn zhu" data-act="card">${isSite ? '挂一张凭吊卡' : '挂一张缅怀卡'}</button>
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="all">名录与寄语</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="incense">${isSite ? '点燃胜迹烽火' : '上一炷香'}</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="offering">${isSite ? '敬献信物金石' : '摆上供品'}</button>
+        <button class="btn zhu" data-act="card">${isSite ? '题壁抒怀寄语' : '挂一张缅怀卡'}</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="archive">📷 百年旧影 · ${isSite ? '金石考据' : '神道石像生'}</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="all">${isSite ? '千秋题壁胜迹录' : '名录与寄语'}</button>
       </div>
     </section>`);
   root.appendChild(view);
@@ -107,33 +109,48 @@ export function renderTomb(root, fig) {
   if (sc.tomb === 'water') drawWater();
   svgEl('ellipse', { class: 'mist', cx: 400, cy: GROUND + 10, rx: 700, ry: 26, fill: night ? '#a9b8c8' : '#fff', opacity: night ? 0.06 : 0.25, filter: 'url(#ink-blur-lg)' }, svg);
 
-  // —— 树 ——
+  // —— 树木或题壁屏风（胜迹用题壁屏风挂题咏诗牌，陵寝用古树挂缅怀牌） ——
   const treeLayer = svgEl('g', {}, svg);
-  const { hangs } = drawTree(treeLayer, sc.tree, fig.id, TREE_X, GROUND + 4);
+  const { hangs } = isSite
+    ? drawSiteInscriptionScreen(treeLayer, fig, TREE_X, GROUND, night)
+    : drawTree(treeLayer, sc.tree, fig.id, TREE_X, GROUND + 4);
   svgEl('ellipse', { cx: TREE_X, cy: GROUND + 6, rx: 120, ry: 10, fill: '#000', opacity: 0.25, filter: 'url(#ink-blur)' }, treeLayer);
 
-  // —— 礼制陵寝建筑群（按等级与时代规制生成） ——
+  // —— 规制建筑群（胜迹建筑 / 帝王陵寝） ——
   drawArchitecture();
-  if (sc.emblem === 'wine') drawWine(TX - 132, GROUND + 2);
-  if (sc.emblem === 'flag') drawFlag(TX + 280, GROUND);
-  if (sc.emblem === 'cauldron') drawCauldron(TX - 165, GROUND + 4);
-  if (sc.emblem === 'sword') drawSword(TX - 132, GROUND + 2);
-  if (sc.emblem === 'compass') drawCompass(TX - 155, GROUND + 2);
-  if (sc.emblem === 'gourd') drawGourd(TX - 132, GROUND + 2);
-  if (sc.emblem === 'slips') drawSlips(TX - 142, GROUND + 4);
-  if (sc.emblem === 'pipa') drawPipa(TX - 132, GROUND + 2);
-  const steleScale = sc.steleType === 'imperial' ? 1.12 : sc.steleType === 'bixi' ? 1.04 : 1.08;
-  const stele = drawStele(TX, GROUND, steleScale);
-  if (sc.emblem === 'hat') drawHat(TX + 66 * steleScale, GROUND - 2);
-  if (sc.emblem === 'fan') drawFan(TX + 68 * steleScale, GROUND - 4);
 
-  // —— 石供桌 + 香炉 + 供品层 ——
+  let stele = null;
+  let incense = null;
   const TABLE_Y = GROUND + 22;
-  drawAltarTable(TX, TABLE_Y);
   const offeringLayer = svgEl('g', {}, svg);
-  const incense = drawBurner(TX, TABLE_Y + 2);
-  if (sc.emblem === 'goose') { drawGoose(TX - 250, GROUND + 50, 1); drawGoose(TX - 320, GROUND + 66, -0.85); }
-  if (sc.emblem === 'chrys') [[TX - 210, GROUND + 22], [TX + 210, GROUND + 30], [TX - 260, GROUND + 50], [TX + 250, GROUND + 60]].forEach(([x, y]) => drawChrys(x, y));
+
+  if (isSite) {
+    // 胜迹专属：摩崖刻石 / 丹陛御碑 / 考古界标（绝非墓碑坟头！）
+    stele = drawSiteMarker(TX, GROUND, fig, night, INK);
+    drawSiteExhibitTable(TX, TABLE_Y, fig, night);
+    incense = drawSiteFlame(TX, TABLE_Y, fig);
+  } else {
+    // 先贤陵寝专属：神道石像生序列（翼马/辟邪石狮/文武翁仲/望柱华表）
+    if (fig.role === '帝王霸主' || fig.role === '将相名臣') {
+      drawSpiritPathStatues(svg, fig, GROUND, night, INK);
+    }
+    if (sc.emblem === 'wine') drawWine(TX - 132, GROUND + 2);
+    if (sc.emblem === 'flag') drawFlag(TX + 280, GROUND);
+    if (sc.emblem === 'cauldron') drawCauldron(TX - 165, GROUND + 4);
+    if (sc.emblem === 'sword') drawSword(TX - 132, GROUND + 2);
+    if (sc.emblem === 'compass') drawCompass(TX - 155, GROUND + 2);
+    if (sc.emblem === 'gourd') drawGourd(TX - 132, GROUND + 2);
+    if (sc.emblem === 'slips') drawSlips(TX - 142, GROUND + 4);
+    if (sc.emblem === 'pipa') drawPipa(TX - 132, GROUND + 2);
+    const steleScale = sc.steleType === 'imperial' ? 1.12 : sc.steleType === 'bixi' ? 1.04 : 1.08;
+    stele = drawStele(TX, GROUND, steleScale);
+    if (sc.emblem === 'hat') drawHat(TX + 66 * steleScale, GROUND - 2);
+    if (sc.emblem === 'fan') drawFan(TX + 68 * steleScale, GROUND - 4);
+    drawAltarTable(TX, TABLE_Y);
+    incense = drawBurner(TX, TABLE_Y + 2);
+    if (sc.emblem === 'goose') { drawGoose(TX - 250, GROUND + 50, 1); drawGoose(TX - 320, GROUND + 66, -0.85); }
+    if (sc.emblem === 'chrys') [[TX - 210, GROUND + 22], [TX + 210, GROUND + 30], [TX - 260, GROUND + 50], [TX + 250, GROUND + 60]].forEach(([x, y]) => drawChrys(x, y));
+  }
 
   // —— 卡片层 ——
   const cardLayer = svgEl('g', {}, svg);
@@ -748,6 +765,279 @@ export function renderTomb(root, fig) {
     return g;
   }
 
+  // ======== 帝王与将相陵寝：神道石像生序列（翼马 / 辟邪石狮 / 文武翁仲 / 望柱华表） ========
+  function drawSpiritPathStatues(parent, f, ground, isNight, ink) {
+    const sg = svgEl('g', { class: 'spirit-path-statues' }, parent);
+    const stoneA = isNight ? '#4e5461' : '#888173';
+    const stoneB = isNight ? '#2e323b' : '#5a544a';
+    const stoneHighlight = isNight ? '#687082' : '#aba394';
+    const isEmperor = f.role === '帝王霸主';
+
+    // 1. 神道望柱华表（左侧远景 TX - 440，右侧远景 TX + 440）
+    [-440, 440].forEach((dx) => {
+      const hx = TX + dx, hy = ground - 12;
+      svgEl('ellipse', { cx: hx, cy: hy + 12, rx: 24, ry: 6, fill: '#000', opacity: 0.3, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: hx - 14, y: hy - 14, width: 28, height: 16, rx: 2, fill: stoneB }, sg);
+      svgEl('rect', { x: hx - 9, y: hy - 210, width: 18, height: 198, fill: linear('hb' + dx, [[0, stoneA], [1, stoneB]], false) }, sg);
+      // 云板（华表横出祥云翅）
+      svgEl('path', { d: `M${hx - 36} ${hy - 180} Q${hx - 12} ${hy - 192} ${hx + 36} ${hy - 180} Q${hx + 28} ${hy - 170} ${hx + 10} ${hy - 172} Q${hx - 28} ${hy - 170} ${hx - 36} ${hy - 180}`, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 1 }, sg);
+      // 承天圆盘与守陵石兽
+      svgEl('ellipse', { cx: hx, cy: hy - 214, rx: 18, ry: 6, fill: stoneHighlight }, sg);
+      svgEl('path', { d: `M${hx - 7} ${hy - 214} L${hx - 5} ${hy - 232} Q${hx} ${hy - 238} ${hx + 5} ${hy - 232} L${hx + 7} ${hy - 214} Z`, fill: stoneB }, sg);
+    });
+
+    if (isEmperor) {
+      // 2. 乾陵/昭陵式神道翼马（左翼神骏 TX - 330）
+      const mx = TX - 330, my = ground - 4;
+      svgEl('ellipse', { cx: mx, cy: my + 6, rx: 45, ry: 9, fill: '#000', opacity: 0.35, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: mx - 40, y: my - 10, width: 80, height: 12, rx: 2, fill: stoneB }, sg);
+      // 马身躯干
+      svgEl('path', { d: `M${mx - 28} ${my - 10} Q${mx - 34} ${my - 44} ${mx - 20} ${my - 58} Q${mx} ${my - 52} ${mx + 22} ${my - 46} Q${mx + 35} ${my - 30} ${mx + 28} ${my - 10} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      // 昂首马头与马鬃
+      svgEl('path', { d: `M${mx + 18} ${my - 48} Q${mx + 32} ${my - 72} ${mx + 44} ${my - 74} Q${mx + 46} ${my - 64} ${mx + 34} ${my - 52} Q${mx + 26} ${my - 44} ${mx + 20} ${my - 44} Z`, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 1 }, sg);
+      // 雕刻石翼（高浮雕飞翼）
+      svgEl('path', { d: `M${mx - 6} ${my - 44} Q${mx - 18} ${my - 82} ${mx + 14} ${my - 88} Q${mx + 4} ${my - 60} ${mx + 18} ${my - 44} Z`, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      // 四足石立柱
+      [-22, -10, 12, 22].forEach((lx) => svgEl('rect', { x: mx + lx - 3, y: my - 24, width: 6, height: 20, rx: 1, fill: stoneB }, sg));
+
+      // 3. 辟邪石兽/石狮（右翼辟邪 TX + 330）
+      const sx = TX + 330, sy = ground - 4;
+      svgEl('ellipse', { cx: sx, cy: sy + 6, rx: 42, ry: 9, fill: '#000', opacity: 0.35, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: sx - 36, y: sy - 10, width: 72, height: 12, rx: 2, fill: stoneB }, sg);
+      // 蹲踞石狮
+      svgEl('path', { d: `M${sx - 24} ${sy - 10} Q${sx - 30} ${sy - 38} ${sx - 15} ${sy - 58} Q${sx} ${sy - 62} ${sx + 18} ${sy - 52} Q${sx + 24} ${sy - 28} ${sx + 22} ${sy - 10} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      // 威武狮首昂扬
+      svgEl('path', { d: `M${sx - 18} ${sy - 54} Q${sx - 28} ${sy - 72} ${sx - 10} ${sy - 80} Q${sx + 12} ${sy - 74} ${sx + 6} ${sy - 54} Z`, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 1 }, sg);
+      // 卷毛卷云纹
+      for (let i = -14; i <= 6; i += 7) svgEl('circle', { cx: sx + i, cy: sy - 66, r: 2.8, fill: stoneB }, sg);
+
+      // 4. 文臣执笏石翁仲（TX - 225）
+      const cx = TX - 225, cy = ground - 4;
+      svgEl('ellipse', { cx: cx, cy: cy + 4, rx: 24, ry: 6, fill: '#000', opacity: 0.3, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: cx - 18, y: cy - 8, width: 36, height: 10, rx: 2, fill: stoneB }, sg);
+      // 文臣长袍
+      svgEl('path', { d: `M${cx - 15} ${cy - 8} L${cx - 12} ${cy - 88} L${cx + 12} ${cy - 88} L${cx + 15} ${cy - 8} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      // 高冠面容
+      svgEl('rect', { x: cx - 7, y: cy - 104, width: 14, height: 16, rx: 3, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 0.8 }, sg);
+      svgEl('path', { d: `M${cx - 8} ${cy - 104} L${cx - 6} ${cy - 116} L${cx + 6} ${cy - 116} L${cx + 8} ${cy - 104} Z`, fill: stoneB }, sg);
+      // 双手执玉笏
+      svgEl('polygon', { points: `${cx - 3},${cy - 80} ${cx - 2},${cy - 52} ${cx + 2},${cy - 52} ${cx + 3},${cy - 80}`, fill: isNight ? '#8fa394' : '#e2eadc', stroke: stoneB, 'stroke-width': 0.8 }, sg);
+
+      // 5. 武将按剑石翁仲（TX + 225）
+      const wx = TX + 225, wy = ground - 4;
+      svgEl('ellipse', { cx: wx, cy: wy + 4, rx: 24, ry: 6, fill: '#000', opacity: 0.3, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: wx - 18, y: wy - 8, width: 36, height: 10, rx: 2, fill: stoneB }, sg);
+      // 铁甲战袍
+      svgEl('path', { d: `M${wx - 16} ${wy - 8} L${wx - 14} ${wy - 86} L${wx + 14} ${wy - 86} L${wx + 16} ${wy - 8} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      // 铁兜鍪盔顶
+      svgEl('path', { d: `M${wx - 9} ${wy - 102} Q${wx} ${wy - 120} ${wx + 9} ${wy - 102} Z`, fill: stoneB, stroke: stoneHighlight, 'stroke-width': 0.8 }, sg);
+      svgEl('rect', { x: wx - 7, y: wy - 102, width: 14, height: 16, rx: 2, fill: stoneHighlight }, sg);
+      // 双手按宝剑（居中直立佩剑）
+      svgEl('line', { x1: wx, y1: wy - 70, x2: wx, y2: wy - 14, stroke: stoneB, 'stroke-width': 3.5 }, sg);
+      svgEl('polygon', { points: `${wx - 7},${wy - 70} ${wx + 7},${wy - 70} ${wx},${wy - 76}`, fill: '#d4b263' }, sg);
+    } else {
+      // 名将祠墓神道（战马石雕 + 按剑将士石雕）
+      const mx = TX - 240, my = ground - 4;
+      svgEl('ellipse', { cx: mx, cy: my + 6, rx: 36, ry: 8, fill: '#000', opacity: 0.35, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: mx - 32, y: my - 10, width: 64, height: 10, rx: 2, fill: stoneB }, sg);
+      svgEl('path', { d: `M${mx - 22} ${my - 10} Q${mx - 26} ${my - 38} ${mx - 15} ${my - 48} Q${mx} ${my - 42} ${mx + 18} ${my - 38} Q${mx + 28} ${my - 26} ${mx + 22} ${my - 10} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      svgEl('path', { d: `M${mx + 14} ${my - 38} Q${mx + 26} ${my - 58} ${mx + 36} ${my - 60} Q${mx + 38} ${my - 52} ${mx + 28} ${my - 42} Z`, fill: stoneHighlight, stroke: stoneB, 'stroke-width': 1 }, sg);
+
+      const wx = TX + 240, wy = ground - 4;
+      svgEl('ellipse', { cx: wx, cy: wy + 4, rx: 22, ry: 6, fill: '#000', opacity: 0.3, filter: 'url(#ink-blur)' }, sg);
+      svgEl('rect', { x: wx - 16, y: wy - 8, width: 32, height: 10, rx: 2, fill: stoneB }, sg);
+      svgEl('path', { d: `M${wx - 14} ${wy - 8} L${wx - 12} ${wy - 80} L${wx + 12} ${wy - 80} L${wx + 14} ${wy - 8} Z`, fill: stoneA, stroke: stoneB, 'stroke-width': 1.2 }, sg);
+      svgEl('path', { d: `M${wx - 8} ${wy - 96} Q${wx} ${wy - 114} ${wx + 8} ${wy - 96} Z`, fill: stoneB }, sg);
+      svgEl('line', { x1: wx, y1: wy - 66, x2: wx, y2: wy - 12, stroke: stoneB, 'stroke-width': 3 }, sg);
+    }
+  }
+
+  // ======== 名胜古迹专属胜迹标识（摩崖刻石 / 丹陛御碑 / 考古界标，绝非墓碑！） ========
+  function drawSiteMarker(x, base, f, isNight, ink) {
+    const g = svgEl('g', { class: 'stele site-marker', transform: `translate(${x} ${base})`, role: 'button', 'aria-label': `触摸${f.name}胜迹铭刻，进入时空对话` }, svg);
+    const stoneA = isNight ? '#464a54' : '#7c776c';
+    const stoneB = isNight ? '#2a2d34' : '#524e46';
+    const gold = '#e4c988';
+    const cinnabar = '#ab342c';
+    const role = f.role;
+
+    // 触碑/触石光晕
+    svgEl('rect', { class: 'stele-glow', x: -90, y: -290, width: 180, height: 290, rx: 30, fill: '#f3d78a', opacity: 0.6, filter: 'url(#ink-blur-lg)' }, g);
+
+    if (role === '古战场遗址') {
+      // 1. 苍凉古战场摩崖劈裂巨石碑
+      svgEl('polygon', { points: '-88,2 -76,-30 -28,-42 34,-36 82,-20 88,2', fill: stoneB }, g);
+      svgEl('polygon', {
+        points: '-68,-30 -78,-160 -54,-248 -8,-292 48,-254 74,-170 66,-30',
+        fill: linear('btstone', [[0, stoneA], [1, stoneB]], false),
+        stroke: isNight ? '#5f6573' : '#948d80', 'stroke-width': 1.2
+      }, g);
+      // 裂纹与金石刻面
+      svgEl('path', { d: 'M-54 -248 L-22 -185 M48 -254 L20 -200', stroke: stoneB, 'stroke-width': 1.5, opacity: 0.6 }, g);
+      svgEl('rect', { x: -36, y: -230, width: 72, height: 180, fill: 'rgba(0,0,0,0.18)', stroke: cinnabar, 'stroke-width': 1 }, g);
+
+      // 铭刻大字
+      const title = f.name;
+      const fs = Math.min(26, 150 / title.length);
+      [...title].forEach((ch, i) => {
+        const t = svgEl('text', { x: 0, y: -206 + fs * (i + 0.85), 'font-size': fs, 'text-anchor': 'middle', fill: cinnabar, 'font-family': 'var(--f-brush)', 'font-weight': 'bold' }, g);
+        t.textContent = ch;
+      });
+      // 两侧插战旗令箭
+      svgEl('line', { x1: -72, y1: -30, x2: -86, y2: -190, stroke: stoneB, 'stroke-width': 2.5 }, g);
+      svgEl('polygon', { points: '-86,-190 -124,-170 -86,-150', fill: cinnabar, opacity: 0.85 }, g);
+
+      const hint = svgEl('text', { class: 'stele-hint', x: 92, y: -220, 'font-size': 13, fill: isNight ? '#efe5d0' : '#2a241d', style: 'writing-mode: vertical-rl' }, g);
+      hint.textContent = '轻触摩崖刻石 · 时空回响';
+    } else if (role === '建筑宫殿遗址') {
+      // 2. 汉白玉螭首双阙御碑（宫殿胜迹碑）
+      svgEl('rect', { x: -84, y: -16, width: 168, height: 18, rx: 2, fill: stoneB }, g);
+      svgEl('polygon', { points: '-72,-16 -62,-30 62,-30 72,-16', fill: stoneA }, g);
+      svgEl('rect', { x: -68, y: -44, width: 136, height: 14, rx: 2, fill: isNight ? '#686f7d' : '#aba394' }, g);
+      // 碑身
+      svgEl('rect', { x: -52, y: -250, width: 104, height: 206, fill: linear('pcstone', [[0, stoneA], [1, stoneB]], false) }, g);
+      svgEl('rect', { x: -44, y: -238, width: 88, height: 182, fill: 'none', stroke: gold, 'stroke-width': 1 }, g);
+      // 螭龙碑额
+      svgEl('path', { d: 'M-58 -246 Q-58 -300 0 -304 Q58 -300 58 -246 Z', fill: stoneB, stroke: gold, 'stroke-width': 1 }, g);
+      svgEl('rect', { x: -20, y: -288, width: 40, height: 28, rx: 2, fill: stoneA, stroke: gold, 'stroke-width': 0.8 }, g);
+      const tag = svgEl('text', { x: 0, y: -270, 'font-size': 11, 'text-anchor': 'middle', fill: gold, 'font-family': 'var(--f-kai)' }, g);
+      tag.textContent = '御制胜迹';
+
+      const title = f.name;
+      const fs = Math.min(26, 146 / title.length);
+      [...title].forEach((ch, i) => {
+        const t = svgEl('text', { x: 0, y: -222 + fs * (i + 0.85), 'font-size': fs, 'text-anchor': 'middle', fill: gold, 'font-family': 'var(--f-kai)' }, g);
+        t.textContent = ch;
+      });
+
+      const hint = svgEl('text', { class: 'stele-hint', x: 88, y: -220, 'font-size': 13, fill: isNight ? '#efe5d0' : '#2a241d', style: 'writing-mode: vertical-rl' }, g);
+      hint.textContent = '轻触御碑金石 · 时空回响';
+    } else {
+      // 3. 考古文明国家遗址公园界碑与探方地层图志
+      svgEl('polygon', { points: '-80,2 -72,-24 72,-24 80,2', fill: stoneB }, g);
+      svgEl('rect', { x: -62, y: -38, width: 124, height: 14, rx: 2, fill: stoneA }, g);
+      svgEl('rect', { x: -50, y: -264, width: 100, height: 226, rx: 3, fill: linear('archstone', [[0, stoneA], [1, stoneB]], false) }, g);
+      // 青铜/玉璧圆徽
+      svgEl('circle', { cx: 0, cy: -228, r: 18, fill: 'none', stroke: gold, 'stroke-width': 1.5 }, g);
+      svgEl('circle', { cx: 0, cy: -228, r: 12, fill: isNight ? '#3b5446' : '#557563' }, g);
+      const sealT = svgEl('text', { x: 0, y: -223, 'font-size': 12, 'text-anchor': 'middle', fill: '#f6ecd9', 'font-family': 'var(--f-kai)' }, g);
+      sealT.textContent = '考';
+
+      const title = f.name;
+      const fs = Math.min(22, 130 / title.length);
+      [...title].forEach((ch, i) => {
+        const t = svgEl('text', { x: 0, y: -194 + fs * (i + 0.85), 'font-size': fs, 'text-anchor': 'middle', fill: '#fff', 'font-family': 'var(--f-kai)' }, g);
+        t.textContent = ch;
+      });
+
+      const hint = svgEl('text', { class: 'stele-hint', x: 84, y: -220, 'font-size': 13, fill: isNight ? '#efe5d0' : '#2a241d', style: 'writing-mode: vertical-rl' }, g);
+      hint.textContent = '轻触探源界石 · 聆听回响';
+    }
+
+    g.addEventListener('click', (e) => {
+      inkTravel({ x: e.clientX, y: e.clientY, text: '时空回响 · 凭吊古迹' }, () => (location.hash = `#/talk/${f.id}`));
+    });
+    return g;
+  }
+
+  // ======== 胜迹展陈与信物令案（绝非供桌！） ========
+  function drawSiteExhibitTable(x, y, f, isNight) {
+    const g = svgEl('g', { class: 'site-exhibit-table' }, svg);
+    const topC = isNight ? '#3d4048' : '#69645a';
+    const legC = isNight ? '#26282e' : '#454037';
+    // 展案阴影
+    svgEl('ellipse', { cx: x, cy: y + 36, rx: 175, ry: 10, fill: '#000', opacity: 0.35, filter: 'url(#ink-blur)' }, g);
+    // 案腿（直筒平足）
+    svgEl('rect', { x: x - 138, y: y + 8, width: 14, height: 28, fill: legC }, g);
+    svgEl('rect', { x: x + 124, y: y + 8, width: 14, height: 28, fill: legC }, g);
+    svgEl('rect', { x: x - 150, y: y, width: 300, height: 10, rx: 2, fill: topC }, g);
+    svgEl('rect', { x: x - 142, y: y + 8, width: 284, height: 5, fill: legC }, g);
+  }
+
+  // ======== 胜迹燎原烽火 / 长明圣火盆 ========
+  function drawSiteFlame(x, y, f) {
+    const g = svgEl('g', { class: 'site-flame-burner' }, svg);
+    const gold = '#e4c988';
+    const fx = x, fy = y - 6;
+
+    // 青铜双耳火盆
+    svgEl('polygon', { points: `${fx - 28},${fy} ${fx - 20},${fy + 14} ${fx + 20},${fy + 14} ${fx + 28},${fy}`, fill: '#33312c', stroke: gold, 'stroke-width': 1 }, g);
+    svgEl('rect', { x: fx - 16, y: fy + 14, width: 32, height: 6, fill: '#23221e' }, g);
+
+    // 火焰组（未点燃微光，点燃烈火）
+    const flameG = svgEl('g', { class: 'flame-glow' }, g);
+    const glow = svgEl('circle', { cx: fx, cy: fy - 18, r: 24, fill: radial('sf_glow', '#ff8432', 0.45) }, flameG);
+    const flame = svgEl('path', {
+      d: `M${fx - 14} ${fy} Q${fx - 18} ${fy - 28} ${fx} ${fy - 44} Q${fx + 18} ${fy - 28} ${fx + 14} ${fy} Z`,
+      fill: '#ff6224', style: 'animation: breathe 2.4s ease-in-out infinite'
+    }, flameG);
+
+    flameG.style.opacity = '0.35';
+
+    return {
+      light() {
+        flameG.style.opacity = '1';
+        glow.setAttribute('r', '44');
+        flame.setAttribute('fill', '#ffa133');
+      }
+    };
+  }
+
+  // ======== 胜迹题壁屏风（供游客题咏寄语抒怀，绝非坟头古树挂牌！） ========
+  function drawSiteInscriptionScreen(parent, f, treeX, ground, isNight) {
+    const g = svgEl('g', { class: 'site-inscription-screen' }, parent);
+    const woodC = isNight ? '#2a2018' : '#453528';
+    const darkWood = isNight ? '#1c1510' : '#2e231a';
+    const gold = '#d4b263';
+    const cinnabar = '#ab342c';
+    const bx = treeX - 30;
+
+    // 地面阴影
+    svgEl('ellipse', { cx: bx, cy: ground + 8, rx: 170, ry: 12, fill: '#000', opacity: 0.35, filter: 'url(#ink-blur)' }, g);
+
+    // 1. 屏风屋檐披水（中式飞檐廊顶）
+    svgEl('path', {
+      d: `M${bx - 165} ${ground - 310} Q${bx} ${ground - 338} ${bx + 165} ${ground - 310} L${bx + 155} ${ground - 295} Q${bx} ${ground - 318} ${bx - 155} ${ground - 295} Z`,
+      fill: darkWood, stroke: gold, 'stroke-width': 1
+    }, g);
+
+    // 2. 题壁匾额
+    svgEl('rect', { x: bx - 78, y: ground - 292, width: 156, height: 26, rx: 3, fill: cinnabar, stroke: gold, 'stroke-width': 1 }, g);
+    const plaqueT = svgEl('text', { x: bx, y: ground - 274, 'font-size': 14, 'text-anchor': 'middle', fill: '#f6ecd9', 'font-family': 'var(--f-brush)', 'letter-spacing': '0.3em' }, g);
+    plaqueT.textContent = '胜迹题壁抒怀';
+
+    // 3. 粗壮立柱与格子架
+    svgEl('rect', { x: bx - 146, y: ground - 295, width: 12, height: 300, fill: woodC }, g);
+    svgEl('rect', { x: bx + 134, y: ground - 295, width: 12, height: 300, fill: woodC }, g);
+    svgEl('rect', { x: bx - 146, y: ground - 4, width: 292, height: 10, fill: darkWood }, g);
+
+    // 屏风背板（仿宣纸木质）
+    svgEl('rect', { x: bx - 134, y: ground - 262, width: 268, height: 258, fill: isNight ? '#22252c' : '#eae1cd', opacity: 0.72 }, g);
+
+    // 木格横档与竖档
+    for (let y = ground - 250; y < ground - 10; y += 42) {
+      svgEl('line', { x1: bx - 134, y1: y, x2: bx + 134, y2: y, stroke: woodC, 'stroke-width': 2 }, g);
+    }
+    for (let x = bx - 100; x <= bx + 100; x += 50) {
+      svgEl('line', { x1: x, y1: ground - 262, x2: x, y2: ground - 4, stroke: woodC, 'stroke-width': 1.5, opacity: 0.5 }, g);
+    }
+
+    // 4. 计算 16 个规则题壁挂点坐标
+    const hangs = [];
+    const rows = [ground - 220, ground - 170, ground - 120, ground - 70];
+    const cols = [bx - 90, bx - 30, bx + 30, bx + 90];
+    rows.forEach((ry, rIdx) => {
+      cols.forEach((cx, cIdx) => {
+        hangs.push({
+          x: cx + ((rIdx + cIdx) % 2 === 0 ? -4 : 4),
+          y: ry
+        });
+      });
+    });
+
+    return { hangs };
+  }
+
   function drawAltarTable(x, y) {
     const g = svgEl('g', { class: 'altar-table' }, svg);
     const topC = night ? '#484a52' : '#7b7468';
@@ -1149,10 +1439,11 @@ export function renderTomb(root, fig) {
     if (act === 'card') openCardForm();
     if (act === 'offering') openOfferingForm();
     if (act === 'all') showAll();
+    if (act === 'archive') openArchiveModal(fig);
     if (act === 'incense' && !lit) {
       lit = true;
-      incense.light();
-      e.target.textContent = '香火已续';
+      incense?.light();
+      e.target.textContent = isSite ? '胜迹烽火已燃' : '香火已续';
       try { incenseCount = (await api.incense(fig.id)).incense; updateCount(); } catch {}
     }
   });

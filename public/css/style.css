@@ -259,20 +259,42 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 1;
   background: radial-gradient(circle, #faf5ec 35%, #e8d9ba 100%);
   border: 1px solid rgba(168, 50, 45, .15);
+  overflow: hidden;
+}
+.portrait-avatar .pa-drawing-wrap {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .95;
+}
+.portrait-avatar .pa-drawing {
+  width: 100%;
+  height: 100%;
+}
+.portrait-avatar .pa-seal-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 .portrait-avatar .pa-dynasty {
+  position: absolute;
+  top: 2px;
+  left: 3px;
   font-family: var(--f-kai);
   font-size: 9px;
   color: var(--ink-3);
-  letter-spacing: .1em;
+  letter-spacing: .05em;
   line-height: 1;
-  margin-bottom: 2px;
+}
 }
 .portrait-avatar .pa-char {
   font-family: var(--f-brush);
@@ -573,6 +595,110 @@ body.dark { background: var(--night); }
 .veil.out { animation: fade .8s ease reverse forwards; }
 @keyframes inkSpread { to { transform: scale(110); } }
 @keyframes veilText { 0%, 25% { opacity: 0; letter-spacing: 1em; filter: blur(8px); } 60%, 100% { opacity: 1; letter-spacing: .4em; filter: none; } }
+
+/* ---------- 历史金石影像馆（银盐老照片与神道石像生） ---------- */
+.modal.modal-archive {
+  width: min(680px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 32px 36px 28px;
+  background: #f7f2e4;
+  border: 1px solid rgba(40, 30, 20, .25);
+  box-shadow: 0 40px 90px -20px rgba(25, 18, 10, .6);
+}
+.archive-modal-box { display: flex; flex-direction: column; gap: 20px; }
+.amb-header { display: flex; align-items: flex-start; gap: 16px; border-bottom: 1px solid rgba(40, 30, 20, .15); padding-bottom: 16px; }
+.amb-stamp { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.amb-seal {
+  width: 38px; height: 38px; border-radius: 4px; background: var(--zhu);
+  color: #f7eed8; font-family: var(--f-kai); font-size: 16px; display: grid; place-items: center;
+  box-shadow: 0 2px 6px rgba(168, 50, 45, .3);
+}
+.amb-seal-sub { font-family: var(--f-kai); font-size: 10px; color: var(--ink-3); letter-spacing: .15em; }
+.amb-title-wrap { flex: 1; min-width: 0; }
+.amb-title { font-family: var(--f-brush); font-size: 28px; color: var(--ink); line-height: 1.25; font-weight: normal; }
+.amb-meta { font-family: var(--f-kai); font-size: 12px; color: var(--ink-3); letter-spacing: .12em; margin-top: 6px; }
+
+/* 仿民国银盐湿版画框 */
+.amb-photo-frame {
+  position: relative;
+  height: 220px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, .4), 0 10px 25px -8px rgba(30, 20, 10, .35);
+  display: flex;
+  align-items: flex-end;
+  padding: 16px 20px;
+}
+.amb-photo-frame.sepia {
+  background: radial-gradient(ellipse at 50% 50%, #4a3e32 0%, #2b231b 65%, #17130e 100%);
+}
+.amb-photo-frame.ink {
+  background: radial-gradient(ellipse at 50% 50%, #363a42 0%, #21242a 65%, #101216 100%);
+}
+.amb-vignette {
+  position: absolute; inset: 0;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, .6);
+  pointer-events: none;
+}
+.amb-photo-mount {
+  position: absolute; width: 18px; height: 18px;
+  border-color: rgba(217, 180, 90, .5);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 3;
+}
+.amb-photo-mount.tl { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+.amb-photo-mount.tr { top: 6px; right: 6px; border-width: 2px 2px 0 0; }
+.amb-photo-mount.bl { bottom: 6px; left: 6px; border-width: 0 0 2px 2px; }
+.amb-photo-mount.br { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+.amb-photo-inner { position: relative; z-index: 2; width: 100%; display: flex; justify-content: space-between; align-items: flex-end; }
+.amb-camera-mark { font-family: var(--f-kai); font-size: 11px; color: rgba(246, 238, 217, .65); letter-spacing: .25em; }
+.amb-caption-callout { display: flex; gap: 8px; align-items: center; }
+.acc-tag { background: rgba(168, 50, 45, .85); color: #fff; font-family: var(--f-kai); font-size: 11px; padding: 2px 8px; border-radius: 3px; }
+.acc-place { font-family: var(--f-kai); font-size: 12px; color: rgba(246, 238, 217, .85); letter-spacing: .15em; }
+
+.amb-body { display: flex; flex-direction: column; gap: 14px; }
+.amb-field { display: flex; flex-direction: column; gap: 5px; }
+.amb-label { font-family: var(--f-kai); font-size: 13px; color: var(--zhu); letter-spacing: .15em; font-weight: bold; }
+.amb-statues { font-family: var(--f-kai); font-size: 14.5px; color: var(--ink); line-height: 1.7; background: rgba(40, 30, 20, .04); padding: 8px 12px; border-radius: 4px; border-left: 2px solid var(--zhu); }
+.amb-desc { font-family: var(--f-serif); font-size: 14.5px; line-height: 1.85; color: var(--ink-2); text-indent: 2em; }
+.amb-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.amb-tag { font-family: var(--f-kai); font-size: 11.5px; color: var(--ink-3); background: rgba(31, 28, 24, .06); padding: 3px 9px; border-radius: 999px; }
+
+.amb-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(40, 30, 20, .12); padding-top: 16px; margin-top: 6px; }
+.btn-vintage-lens {
+  background: rgba(43, 85, 110, .1); color: #234d65; border: 1px solid rgba(43, 85, 110, .3);
+  font-family: var(--f-kai); font-size: 13px; padding: 6px 14px; border-radius: 4px; transition: all .25s;
+}
+.btn-vintage-lens:hover, .btn-vintage-lens.active { background: #234d65; color: #fff; }
+
+/* 全局百年湿版老胶片质感滤镜 */
+body.vintage-lens-mode .view {
+  filter: sepia(0.28) contrast(1.08) brightness(0.96) grayscale(0.15);
+  transition: filter .6s ease;
+}
+
+/* 生平页中的历史金石预览卡片 */
+.life-archives-section { margin-top: 36px; }
+.archive-preview-card {
+  background: rgba(255, 252, 245, .85); border: 1px solid rgba(40, 30, 20, .16);
+  border-radius: 8px; padding: 22px 24px; box-shadow: 0 16px 36px -14px rgba(40, 28, 10, .25);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.apc-head { display: flex; flex-direction: column; gap: 4px; }
+.apc-tag { align-self: flex-start; font-size: 11px; padding: 3px 6px; border-radius: 3px; background: var(--zhu); color: #fff; }
+.apc-title { font-family: var(--f-brush); font-size: 26px; color: var(--ink); line-height: 1.2; margin-top: 4px; }
+.apc-era { font-family: var(--f-kai); font-size: 12px; color: var(--ink-3); letter-spacing: .1em; }
+.apc-statues { font-family: var(--f-kai); font-size: 14px; color: var(--ink); line-height: 1.6; background: rgba(31, 28, 24, .04); padding: 8px 12px; border-radius: 4px; border-left: 2.5px solid var(--zhu); }
+.apc-desc { font-size: 14.5px; line-height: 1.85; color: var(--ink-2); text-indent: 2em; }
+.btn-view-archive { align-self: flex-start; padding: 6px 16px; font-family: var(--f-kai); font-size: 13.5px; }
+
+/* 胜迹专属组件 */
+.site-marker { cursor: pointer; }
+.site-marker:hover .stele-glow { opacity: 1; }
+.site-flame-burner { filter: drop-shadow(0 0 14px rgba(255, 120, 40, .4)); }
+.site-inscription-screen { filter: drop-shadow(0 10px 24px rgba(20, 15, 10, .3)); }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 760px) {
