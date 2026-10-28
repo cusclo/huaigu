@@ -164,7 +164,9 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
   border: 1px solid rgba(31, 28, 24, .14); border-radius: 999px;
   box-shadow: 0 10px 28px -12px rgba(40, 28, 10, .22);
   max-width: 100%; overflow-x: auto;
+  scrollbar-width: none; -ms-overflow-style: none;
 }
+.era-bar::-webkit-scrollbar, .role-bar::-webkit-scrollbar { display: none; }
 .era-bar button, .role-bar button {
   padding: 5px 14px; border-radius: 999px; font-family: var(--f-kai); font-size: 14px;
   letter-spacing: .12em; color: var(--ink-2); transition: all .28s var(--ease);
@@ -351,7 +353,19 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
 .fp-close:hover { opacity: 1; }
 
 /* ---------- 墓园 ---------- */
-.tomb-view { background: #000; overflow: hidden; }
+.tomb-view { position: absolute; inset: 0; background: #000; overflow: hidden; }
+.tomb-view::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 180px;
+  background: linear-gradient(to top, rgba(16, 14, 12, .88) 0%, rgba(16, 14, 12, .45) 55%, rgba(16, 14, 12, 0) 100%);
+  pointer-events: none;
+  z-index: 5;
+}
+.tomb-view.night::after {
+  background: linear-gradient(to top, rgba(6, 8, 12, .92) 0%, rgba(6, 8, 12, .5) 55%, rgba(6, 8, 12, 0) 100%);
+}
 .tomb-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .particles { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .tomb-view.night .top-bar, .tomb-view.night .tomb-actions, .tomb-view.night .tomb-title { color: #efe5d0; }
@@ -362,8 +376,8 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
 .tomb-title p { margin-top: 10px; font-family: var(--f-kai); font-size: 14px; letter-spacing: .25em; opacity: .7; }
 .tomb-title .tt-tree { margin-top: 4px; font-size: 12px; opacity: .55; letter-spacing: .3em; }
 
-.tomb-actions { position: absolute; bottom: 30px; left: 0; right: 0; z-index: 6; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 0 16px; }
-.tomb-count { position: absolute; bottom: 86px; left: 0; right: 0; text-align: center; z-index: 6; font-family: var(--f-kai); font-size: 13px; letter-spacing: .3em; opacity: .6; pointer-events: none; }
+.tomb-actions { position: absolute; bottom: 22px; left: 0; right: 0; z-index: 6; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 0 16px; }
+.tomb-count { position: absolute; bottom: 84px; left: 0; right: 0; text-align: center; z-index: 6; font-family: var(--f-kai); font-size: 13px; letter-spacing: .3em; opacity: .75; pointer-events: none; }
 .tomb-view.night .tomb-count { color: #efe5d0; }
 
 .stele { cursor: pointer; }
@@ -457,24 +471,43 @@ body.dark .paper-grain { mix-blend-mode: screen; opacity: .05; }
 
 /* ---------- 生平 ---------- */
 .life-view { overflow-y: auto; overflow-x: hidden; user-select: text; background: linear-gradient(180deg, #f3ecdc, #ebe1ca); }
-.life-wrap { max-width: 1080px; margin: 0 auto; padding: 110px 40px 120px; display: grid; grid-template-columns: 220px 1fr; gap: 64px; }
-.life-side { position: sticky; top: 96px; align-self: start; display: flex; flex-direction: column; gap: 20px; align-items: flex-start; }
+.life-wrap { max-width: 1080px; margin: 0 auto; padding: 90px 40px 120px; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 64px; }
+.life-side { position: sticky; top: 88px; align-self: start; display: flex; flex-direction: column; gap: 24px; align-items: center; width: 240px; }
 .life-portrait-card {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding: 8px 8px 10px; background: rgba(255, 250, 240, .8); border: 1px solid rgba(31, 28, 24, .14);
   border-radius: 14px; box-shadow: 0 14px 34px -10px rgba(35, 25, 10, .26);
 }
 .life-portrait-caption { font-family: var(--f-kai); font-size: 11px; letter-spacing: .25em; color: var(--ink-3); }
-.life-side-text { display: flex; gap: 16px; align-items: flex-start; }
-.life-name { font-family: var(--f-brush); font-size: 88px; line-height: 1; writing-mode: vertical-rl; }
-.life-side-meta { writing-mode: vertical-rl; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; padding-top: 6px; }
-.life-side-meta .seal { font-size: 14px; padding: 8px 4px; }
-.life-side-meta span { font-family: var(--f-kai); font-size: 14px; letter-spacing: .35em; color: var(--ink-2); }
+.life-side-text { display: flex; gap: 16px; align-items: flex-start; justify-content: center; width: 100%; }
+.life-name { font-family: var(--f-brush); font-size: 76px; line-height: 1; writing-mode: vertical-rl; letter-spacing: .05em; color: var(--ink); }
+.life-side-meta { writing-mode: vertical-rl; display: flex; flex-direction: column; gap: 12px; align-items: flex-start; padding-top: 4px; }
+.life-side-meta .seal {
+  font-family: var(--f-kai); font-weight: 600; font-size: 13px; color: #f6ecd9;
+  padding: 8px 6px; min-width: 24px; line-height: 1.25; letter-spacing: .2em;
+  writing-mode: vertical-rl; border-radius: 3px; filter: none;
+  box-shadow: inset 0 0 0 1px rgba(246, 236, 217, .6), 0 2px 6px rgba(168, 50, 45, .25);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.life-side-meta span { font-family: var(--f-kai); font-size: 14px; letter-spacing: .35em; color: var(--ink-2); line-height: 1.4; }
+.life-side-meta span.seal { color: #f6ecd9; }
+.life-main { min-width: 0; }
 .life-main section { margin-bottom: 72px; }
 .life-main h2 { font-family: var(--f-brush); font-weight: normal; font-size: 30px; letter-spacing: .25em; display: flex; align-items: center; gap: 16px; margin-bottom: 26px; }
 .life-main h2::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(31, 28, 24, .3), transparent); }
-.life-motto { font-family: var(--f-kai); font-size: 26px; line-height: 1.8; color: var(--ink); margin-bottom: 56px; padding-left: 22px; border-left: 3px solid var(--zhu); }
+.life-motto { font-family: var(--f-kai); font-size: 26px; line-height: 1.8; color: var(--ink); margin: 0 0 28px 0; padding-left: 20px; border-left: 3px solid var(--zhu); }
 .life-motto small { display: block; font-size: 13px; color: var(--ink-3); letter-spacing: .25em; margin-top: 6px; }
+.life-arch-bar {
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px; margin-bottom: 48px;
+  background: rgba(246, 240, 228, .75); border: 1px solid rgba(31, 28, 24, .12);
+  border-radius: 8px; font-family: var(--f-kai);
+}
+.life-arch-bar .arch-badge {
+  flex: none; font-size: 12px; padding: 3px 8px;
+  background: rgba(168, 50, 45, .1); color: var(--zhu);
+  border: 1px solid rgba(168, 50, 45, .25); border-radius: 4px; letter-spacing: .15em;
+}
+.life-arch-bar .arch-desc { font-size: 14px; color: var(--ink-2); letter-spacing: .08em; line-height: 1.6; }
 .life-bio p { font-size: 17px; line-height: 2.15; text-indent: 2em; color: var(--ink-2); margin-bottom: 1em; }
 .timeline { position: relative; padding-left: 28px; }
 .timeline::before { content: ""; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 1px; background: rgba(31, 28, 24, .25); }
@@ -501,7 +534,26 @@ body.dark { background: var(--night); }
 .talk-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .talk-ghost { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); font-family: var(--f-brush); font-size: min(38vh, 34vw); color: rgba(231, 220, 196, .035); writing-mode: vertical-rl; pointer-events: none; white-space: nowrap; letter-spacing: -.05em; }
 .talk-head { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; padding: 22px 28px; }
+.talk-head-actions { display: flex; align-items: center; gap: 10px; }
+.talk-back .tb-short { display: none; }
+.btn-scroll-export {
+  padding: 5px 14px; font-size: 13px; gap: 6px;
+  border-color: rgba(217, 180, 90, .4); color: #e8dcc4;
+  background: rgba(217, 180, 90, .08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+}
+.btn-scroll-export:hover {
+  border-color: var(--xing); color: #fff8e8; background: rgba(217, 180, 90, .2);
+  box-shadow: 0 0 12px rgba(217, 180, 90, .3);
+}
+.bse-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; font-size: 11px; font-family: var(--f-kai);
+  background: rgba(217, 180, 90, .22); color: var(--xing);
+  border: 1px solid rgba(217, 180, 90, .45); border-radius: 3px; line-height: 1;
+}
 .talk-who { display: flex; align-items: center; gap: 14px; }
+.talk-who-text { text-align: right; }
 .talk-who .seal { width: 46px; height: 46px; font-size: 26px; }
 .talk-who .portrait-avatar { border: 1.5px solid rgba(217, 180, 90, .45); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); }
 .talk-who b { font-family: var(--f-brush); font-weight: normal; font-size: 28px; letter-spacing: .1em; display: block; line-height: 1.1; }
@@ -518,13 +570,14 @@ body.dark { background: var(--night); }
 @keyframes msgIn { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } }
 .msg.ancient {
   align-self: flex-start; display: flex; gap: 14px; align-items: flex-start;
-  font-family: var(--f-kai); font-size: 18.5px; line-height: 2; color: #eadfc6;
-  padding-left: 0; border-left: none; white-space: pre-wrap;
+  font-family: var(--f-kai); font-size: 18.5px; line-height: 1.85; color: #eadfc6;
+  padding-left: 0; border-left: none;
 }
 .msg-avatar-col { flex: none; margin-top: 3px; }
 .msg-avatar-col .portrait-avatar { border: 1.5px solid rgba(217, 180, 90, .4); }
 .msg-content-col { flex: 1; min-width: 0; padding-left: 14px; border-left: 1px solid rgba(217, 180, 90, .45); }
-.msg.ancient .who { display: block; font-size: 12px; letter-spacing: .35em; color: var(--xing); opacity: .75; margin-bottom: 4px; }
+.msg.ancient .who { display: block; font-size: 12px; letter-spacing: .35em; color: var(--xing); opacity: .75; margin-bottom: 6px; line-height: 1.2; }
+.msg.ancient .txt { white-space: pre-wrap; word-break: break-word; }
 .msg.modern { align-self: flex-end; font-size: 15px; line-height: 1.85; color: #c9d2d9; background: rgba(120, 150, 170, .1); border: 1px solid rgba(160, 190, 210, .14); padding: 10px 16px; border-radius: 14px 14px 2px 14px; white-space: pre-wrap; }
 .msg .caret { display: inline-block; width: 7px; height: 1em; vertical-align: -2px; margin-left: 2px; background: var(--xing); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -665,28 +718,97 @@ body.vintage-lens-mode .view {
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 760px) {
-  .brand { top: 20px; left: 18px; }
-  .brand-title { font-size: 52px; }
-  .map-top-right { top: 20px; right: 16px; }
+  .brand { top: 16px; left: 14px; gap: 6px; }
+  .brand-title { font-size: 36px; }
+  .brand-col { gap: 6px; padding-top: 3px; }
+  .brand-col .seal { width: 22px; height: 22px; font-size: 11px; }
+  .brand-sub { font-size: 10px; letter-spacing: .25em; }
+
+  .map-top-right { top: 14px; right: 12px; gap: 6px; max-width: calc(100% - 76px); align-items: flex-end; }
   .map-hint { display: none; }
-  .filter-dock { bottom: 14px; max-width: calc(100% - 20px); }
-  .era-bar, .role-bar { max-width: 100%; overflow-x: auto; }
-  .era-bar button, .role-bar button { padding: 5px 10px; font-size: 12px; }
+  .top-right-btns { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .kind-switch { padding: 2px; }
+  .kind-switch button { padding: 3px 8px; font-size: 11.5px; letter-spacing: .05em; }
+  .roster-trigger { padding: 4px 10px 4px 6px; font-size: 12px; gap: 5px; }
+  .rt-seal { width: 18px; height: 18px; font-size: 11px; }
+
+  .filter-dock { bottom: 12px; max-width: calc(100% - 16px); width: calc(100% - 16px); }
+  .era-bar, .role-bar {
+    max-width: 100%; overflow-x: auto; padding-right: 28px;
+    -webkit-overflow-scrolling: touch;
+    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 32px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 32px), transparent 100%);
+  }
+  .era-bar button, .role-bar button { padding: 4px 10px; font-size: 12px; flex: none; }
   .map-tools { right: 14px; bottom: 110px; }
   .figure-pop { left: 12px !important; right: 12px; width: auto; bottom: 105px; top: auto !important; }
+
   .tomb-title { top: 64px; left: 20px; }
   .tomb-title h1 { font-size: 46px; }
   .tt-heading { gap: 12px; }
   .top-bar { padding: 16px 18px; }
-  .life-wrap { grid-template-columns: 1fr; padding: 80px 22px 100px; gap: 24px; }
-  .life-side { position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .life-side-text { flex-direction: column; }
-  .life-name { writing-mode: horizontal-tb; font-size: 64px; }
-  .life-side-meta { writing-mode: horizontal-tb; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .top-bar .back-link { white-space: nowrap; font-size: 13px; letter-spacing: .15em; }
+
+  .tomb-actions {
+    bottom: 0; left: 0; right: 0;
+    flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px;
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none;
+  }
+  .tomb-actions::-webkit-scrollbar { display: none; }
+  .tomb-actions .btn { font-size: 13px; padding: .5em 1em; white-space: nowrap; flex: none; }
+  .tomb-count { bottom: calc(54px + env(safe-area-inset-bottom)); font-size: 12px; }
+
+  /* 生平移动端优化：彻底杜绝横向溢出 */
+  .life-wrap { grid-template-columns: minmax(0, 1fr); padding: 76px 18px 90px; gap: 24px; width: 100%; box-sizing: border-box; }
+  .life-side { position: static; width: 100%; flex-direction: column; align-items: flex-start; gap: 16px; }
+  .life-portrait-card { margin: 0; }
+  .life-side-text { flex-direction: column; width: 100%; min-width: 0; gap: 8px; }
+  .life-name { writing-mode: horizontal-tb; font-size: 46px; line-height: 1.1; letter-spacing: .08em; word-break: break-word; }
+  .life-side-meta {
+    writing-mode: horizontal-tb; flex-direction: row; flex-wrap: wrap; align-items: center;
+    gap: 8px 12px; width: 100%; min-width: 0; padding-top: 0;
+  }
+  .life-side-meta .seal {
+    writing-mode: horizontal-tb; min-width: auto; padding: 3px 8px; font-size: 12px; letter-spacing: .15em; line-height: 1.2;
+  }
+  .life-side-meta span { font-size: 13px; letter-spacing: .12em; white-space: normal; word-break: break-word; }
+  .life-main { width: 100%; min-width: 0; }
+  .life-motto { font-size: 20px; line-height: 1.7; padding-left: 14px; margin: 0 0 24px 0; word-break: break-word; }
+  .life-motto small { font-size: 12px; letter-spacing: .15em; word-break: break-word; }
+  .life-arch-bar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 14px; margin-bottom: 32px; }
+  .life-arch-bar .arch-desc { font-size: 13px; line-height: 1.6; word-break: break-word; }
+  .life-bio p { font-size: 15px; line-height: 1.85; word-break: break-word; }
+  .tl-item { grid-template-columns: 78px 1fr; gap: 8px; font-size: 14px; }
   .work { height: 330px; }
+  .life-cta .btn { flex: 1 1 100%; justify-content: center; }
+
+  /* 对话移动端优化：精简顶栏、单行横滚推荐 */
+  .talk-head { padding: 14px 16px; gap: 8px; justify-content: space-between; }
+  .talk-head-actions { gap: 6px; flex: none; }
+  .talk-back { padding: 4px 6px; font-size: 13px; }
+  .talk-back .tb-long { display: none; }
+  .talk-back .tb-short { display: inline; }
+  .btn-scroll-export { padding: 5px 8px; font-size: 12px; gap: 0; min-width: auto; }
+  .btn-scroll-export .bse-text { display: none; }
+  .btn-scroll-export .bse-icon { width: 22px; height: 22px; font-size: 12px; }
   .talk-span { display: none; }
+  .talk-who { gap: 8px; flex: none; }
+  .talk-who-text small { display: none; }
+  .talk-who-text b { font-size: 20px; line-height: 1.1; }
+  .talk-who .portrait-avatar { width: 36px; height: 36px; }
+
   .msg { max-width: 94%; }
   .msg.ancient { font-size: 17px; }
+
+  .suggests {
+    flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; margin-bottom: 10px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none;
+    -webkit-mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 30px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 0%, #000 calc(100% - 30px), transparent 100%);
+  }
+  .suggests::-webkit-scrollbar { display: none; }
+  .suggests button { flex: none; white-space: nowrap; font-size: 12px; padding: 5px 12px; }
 }
 
 /* ---------- 金石声律与手卷结集 ---------- */

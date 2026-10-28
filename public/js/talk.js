@@ -13,9 +13,15 @@ export function renderTalk(root, fig) {
       <canvas class="talk-bg"></canvas>
       <div class="talk-ghost">${esc(fig.name)}</div>
       <header class="talk-head">
-        <div style="display:flex;align-items:center;gap:10px">
-          <a class="back-link" href="#/tomb/${fig.id}">${isSite ? '返回遗址' : '返回墓园'}</a>
-          <button class="btn btn-scroll-export" type="button" title="结集题跋，留存对话手卷" style="padding:4px 12px;font-size:13px;border-color:rgba(212,178,99,.4);color:#e8dcc4">📜 结为手卷</button>
+        <div class="talk-head-actions">
+          <a class="back-link talk-back" href="#/tomb/${fig.id}">
+            <span class="tb-long">${isSite ? '返回遗址' : '返回墓园'}</span>
+            <span class="tb-short">返回</span>
+          </a>
+          <button class="btn ghost-light btn-scroll-export" type="button" title="结集题跋，留存对话手卷">
+            <span class="bse-icon">卷</span>
+            <span class="bse-text">结为手卷</span>
+          </button>
         </div>
         <div class="talk-span">
           <span>${esc(fig.dynasty)} · ${esc(fig.years.split('—')[1] || fig.years)}</span>
@@ -25,7 +31,7 @@ export function renderTalk(root, fig) {
           <span>公元 2026</span>
         </div>
         <div class="talk-who">
-          <div style="text-align:right">
+          <div class="talk-who-text">
             <b>${esc(fig.name)}</b>
             <small>${esc(fig.zi || fig.title)}</small>
           </div>
@@ -46,7 +52,7 @@ export function renderTalk(root, fig) {
             <textarea rows="1" maxlength="500" placeholder="${isSite ? `面对千载胜迹，题留感怀之语……` : `隔着 ${spanYears} 年光阴，对${esc(fig.name)}说句话……`}"></textarea>
             <button type="submit" class="send-btn" title="发送">问</button>
           </form>
-          <div class="talk-note">由 DeepSeek AI 驱动 · 跨越时空模拟古人神韵</div>
+          <div class="talk-note">AI 模拟古人神韵 · 仅供怀古遣兴</div>
         </div>
       </footer>
     </section>`);
@@ -68,15 +74,11 @@ export function renderTalk(root, fig) {
   const scrollBottom = () => { logEl.scrollTop = logEl.scrollHeight; };
 
   function appendAncient(text) {
+    const cleanText = (text || '').trim();
     const el = html(`
       <div class="msg ancient">
-        <div class="msg-avatar-col">
-          ${renderPortraitHtml(fig, 'sm')}
-        </div>
-        <div class="msg-content-col">
-          <span class="who">${esc(fig.name)}</span>
-          <span class="txt">${esc(text)}</span>
-        </div>
+        <div class="msg-avatar-col">${renderPortraitHtml(fig, 'sm')}</div>
+        <div class="msg-content-col"><div class="who">${esc(fig.name)}</div><div class="txt">${esc(cleanText)}</div></div>
       </div>`);
     inner.appendChild(el);
     scrollBottom();
@@ -105,14 +107,8 @@ export function renderTalk(root, fig) {
 
     const replyEl = html(`
       <div class="msg ancient">
-        <div class="msg-avatar-col">
-          ${renderPortraitHtml(fig, 'sm')}
-        </div>
-        <div class="msg-content-col">
-          <span class="who">${esc(fig.name)}</span>
-          <span class="txt"></span>
-          <span class="thinking"><span></span><span></span><span></span><em class="thinking-text">${isSite ? '胜迹回响中……' : '故人沉吟中……'}</em></span>
-        </div>
+        <div class="msg-avatar-col">${renderPortraitHtml(fig, 'sm')}</div>
+        <div class="msg-content-col"><div class="who">${esc(fig.name)}</div><div class="txt"></div><span class="thinking"><span></span><span></span><span></span><em class="thinking-text">${isSite ? '胜迹回响中……' : '故人沉吟中……'}</em></span></div>
       </div>`);
     inner.appendChild(replyEl);
     scrollBottom();

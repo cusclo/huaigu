@@ -26,7 +26,6 @@ export function renderLife(root, fig) {
               <span>${esc(fig.zi)}</span>
               <span>${esc(fig.dynasty)} · ${esc(fig.years)}</span>
               <span>${esc(fig.place)}</span>
-              ${fig.scene?.archLabel ? `<span>规制：${esc(fig.scene.archLabel)}</span>` : ''}
             </div>
           </div>
         </aside>
@@ -35,6 +34,13 @@ export function renderLife(root, fig) {
             ${esc(fig.motto)}
             <small>—— ${esc(fig.name)} · ${esc(fig.epitaph)}</small>
           </blockquote>
+
+          ${fig.scene?.archLabel ? `
+            <div class="life-arch-bar">
+              <span class="arch-badge">${isSite ? '遗迹规制' : '陵寝规制'}</span>
+              <span class="arch-desc">${esc(fig.scene.archLabel)}</span>
+            </div>
+          ` : ''}
 
           <section class="life-bio">
             <h2>${isSite ? '遗址考略' : '生平小传'}</h2>

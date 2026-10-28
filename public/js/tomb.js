@@ -9,7 +9,7 @@ import { renderPortraitHtml } from './core/portraits.js';
 import { openArchiveModal } from './core/archives.js';
 import { playOfferingSound, playTravelSound } from './core/sound.js';
 
-const VB_W = 1600, VB_H = 900, GROUND = 772, TX = 620, TREE_X = 1110;
+const VB_W = 1600, VB_H = 900, GROUND = 700, TX = 620, TREE_X = 1110;
 
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => '#' + hex(a).map((v, i) => Math.round(v + (hex(b)[i] - v) * t).toString(16).padStart(2, '0')).join('');
@@ -19,9 +19,11 @@ export function renderTomb(root, fig) {
   const sc = fig.scene;
   const isSite = fig.kind === 'site';
   const night = lum(sc.sky[0]) < 0.35;
+  const isNarrow = typeof window !== 'undefined' && window.innerWidth / (window.innerHeight || 1) < 1;
+  const initialVB = isNarrow ? `${TX - 450} 0 900 ${VB_H}` : `0 0 ${VB_W} ${VB_H}`;
   const view = html(`
     <section class="view tomb-view ${night ? 'night' : ''}">
-      <svg class="tomb-svg" viewBox="0 0 ${VB_W} ${VB_H}" preserveAspectRatio="xMidYMax slice"></svg>
+      <svg class="tomb-svg" viewBox="${initialVB}" preserveAspectRatio="xMidYMax slice"></svg>
       <canvas class="particles"></canvas>
       <header class="top-bar">
         <a class="back-link" href="#/">舆图</a>
@@ -47,6 +49,11 @@ export function renderTomb(root, fig) {
   root.appendChild(view);
 
   const svg = view.querySelector('svg');
+  const updateViewBox = () => {
+    const narrow = window.innerWidth / (window.innerHeight || 1) < 1;
+    svg.setAttribute('viewBox', narrow ? `${TX - 450} 0 900 ${VB_H}` : `0 0 ${VB_W} ${VB_H}`);
+  };
+  window.addEventListener('resize', updateViewBox);
   const R = rng(fig.id);
   const r = (a, b) => a + R() * (b - a);
   const defs = svgEl('defs', {}, svg);
@@ -95,8 +102,8 @@ export function renderTomb(root, fig) {
   mountain(735, 70, mix(mBase, INK, 0.55), 0.7, false, 'c');
 
   // 远景点缀
-  if (sc.emblem === 'hut') drawHut(250, 742);
-  if (sc.emblem === 'boat' && sc.tomb !== 'water') drawBoat(330, 690, 0.8, 0.55);
+  if (sc.emblem === 'hut') drawHut(250, GROUND - 30);
+  if (sc.emblem === 'boat' && sc.tomb !== 'water') drawBoat(330, GROUND - 82, 0.8, 0.55);
 
   // —— 地 ——
   const groundTop = night ? mix(sky1, '#05070a', 0.55) : mix(sky1, '#3a3026', 0.45);
@@ -163,10 +170,10 @@ export function renderTomb(root, fig) {
   function drawCelestial() {
     const c = sc.celestial;
     if (c === 'moon') {
-      svgEl('circle', { cx: 300, cy: 170, r: 190, fill: radial('mg', '#f6eccc', 0.35) }, svg);
-      svgEl('circle', { cx: 300, cy: 170, r: 50, fill: '#f6eed6' }, svg);
-      svgEl('circle', { cx: 285, cy: 160, r: 9, fill: '#e3d8b8', opacity: 0.6 }, svg);
-      svgEl('circle', { cx: 316, cy: 186, r: 6, fill: '#e3d8b8', opacity: 0.5 }, svg);
+      svgEl('circle', { cx: 1380, cy: 150, r: 150, fill: radial('mg', '#f6eccc', 0.35) }, svg);
+      svgEl('circle', { cx: 1380, cy: 150, r: 50, fill: '#f6eed6' }, svg);
+      svgEl('circle', { cx: 1365, cy: 140, r: 9, fill: '#e3d8b8', opacity: 0.6 }, svg);
+      svgEl('circle', { cx: 1396, cy: 166, r: 6, fill: '#e3d8b8', opacity: 0.5 }, svg);
     } else if (c === 'moon-pale') {
       svgEl('circle', { cx: 1330, cy: 150, r: 110, fill: radial('mg', '#ffffff', 0.4) }, svg);
       svgEl('circle', { cx: 1330, cy: 150, r: 34, fill: '#fbf8f1', opacity: 0.85 }, svg);
@@ -1462,5 +1469,8 @@ export function renderTomb(root, fig) {
     updateCount();
   }).catch(() => updateCount());
 
-  return () => stopParticles();
+  return () => {
+    window.removeEventListener('resize', updateViewBox);
+    stopParticles();
+  };
 }
