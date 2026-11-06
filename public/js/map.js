@@ -118,6 +118,7 @@ let saved = null; // { state, w, h, userMoved }
 let savedEra = '全部';
 let savedRole = '全部';
 let savedKind = 'all'; // 'all' | 'figure' | 'site'
+let savedHideDim = false; // 筛选时隐去未选印记（而非淡显）
 
 export function renderMap(root) {
   const view = html(`
@@ -145,14 +146,26 @@ export function renderMap(root) {
             <button type="button" data-kind="figure">● 先贤陵墓</button>
             <button type="button" data-kind="site">◆ 名胜古迹</button>
           </div>
-          <button class="roster-trigger" type="button" title="打开百贤与古迹名录检索">
+          <button class="dim-toggle" type="button" hidden aria-pressed="false" title="筛选时隐去或淡显未选中的印记">隐去未选</button>
+          <button class="roster-trigger" type="button" title="打开百贤与古迹名录检索（快捷键 /）">
             <span class="rt-seal">录</span>
             <span>名录检索</span>
           </button>
         </div>
       </div>
-      <div class="filter-dock">
+      <button class="filter-fab" type="button" aria-expanded="false">
+        <span class="ff-icon" aria-hidden="true">筛</span><span class="ff-text">筛选</span><em class="ff-badge" hidden></em>
+      </button>
+      <div class="sheet-backdrop" hidden></div>
+      <div class="filter-dock" id="map-filter-dock">
+        <div class="sheet-head">
+          <b>筛选印记</b>
+          <button type="button" class="sheet-reset">重置</button>
+          <button type="button" class="sheet-done">完成</button>
+        </div>
+        <div class="sheet-label">身份 · 类别</div>
         <nav class="role-bar" aria-label="人物身份与古迹类别筛选"></nav>
+        <div class="sheet-label">朝代</div>
         <nav class="era-bar" aria-label="历史朝代筛选"></nav>
       </div>
       <div class="map-tools">
@@ -180,6 +193,7 @@ export function renderMap(root) {
   const svg = view.querySelector('.map-svg');
   const world = svgEl('g', {}, svg);
   const overlay = svgEl('g', {}, svg);
+  const clusterLayer = svgEl('g', { class: 'cluster-layer' }, svg);
   const markerLayer = svgEl('g', {}, svg);
   const focusLayer = svgEl('g', { style: 'pointer-events:none' }, svg);
   let pop = null;
@@ -281,6 +295,33 @@ export function renderMap(root) {
     return mObj;
   });
 
+  // 聚合印记：同屏过密的标记合并为「数字圆」，点击放大展开
+  const clusterPool = [];
+  function clusterEl(i) {
+    if (clusterPool[i]) return clusterPool[i];
+    const g = svgEl('g', { class: 'cluster', tabindex: 0, role: 'button' }, clusterLayer);
+    svgEl('circle', { class: 'c-halo', r: 17 }, g);
+    svgEl('circle', { class: 'c-body', r: 12.5 }, g);
+    const t = svgEl('text', { class: 'c-num', 'text-anchor': 'middle', y: 4.5 }, g);
+    const title = svgEl('title', {}, g);
+    const go = (e) => { e.stopPropagation(); if (!moved && g._members) zoomToMembers(g._members); };
+    g.addEventListener('click', go);
+    g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), go(e)));
+    g.addEventListener('pointerdown', (e) => e.stopPropagation());
+    clusterPool[i] = { g, t, title };
+    return clusterPool[i];
+  }
+  function zoomToMembers(members) {
+    userMoved = true;
+    closePop();
+    const xs = members.map((m) => m.p[0]), ys = members.map((m) => m.p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const vw = W() - rightInset();
+    const fitK = Math.min((vw - 220) / Math.max(1, x1 - x0), (H() - 280) / Math.max(1, y1 - y0));
+    const k = clampK(Math.min(state.k * 4, Math.max(state.k * 1.8, fitK)));
+    animateTo({ k, x: vw / 2 - ((x0 + x1) / 2) * k, y: H() / 2 - ((y0 + y1) / 2) * k }, 560);
+  }
+
   function layout() {
     const { k, x, y } = state;
     const tf = (p) => [p[0] * k + x, p[1] * k + y];
@@ -343,6 +384,55 @@ export function renderMap(root) {
       focusGroup.setAttribute('opacity', '0');
     }
 
+    // 聚合：以屏幕距离贪心合并（悬停/选中/未选印记不参与）
+    const CLUSTER_R = 22;
+    const clusters = [];
+    const clustered = new Set();
+    if (zoomRatio < 6) {
+      const cand = markers.filter((m) => !m.g.classList.contains('dim') && !m.hovered && !m.g.classList.contains('active'));
+      for (const m of cand) {
+        if (clustered.has(m)) continue;
+        const members = cand.filter((o) => !clustered.has(o) && Math.abs(o.sx - m.sx) < CLUSTER_R && Math.abs(o.sy - m.sy) < CLUSTER_R && Math.hypot(o.sx - m.sx, o.sy - m.sy) < CLUSTER_R);
+        if (members.length >= 3) {
+          members.forEach((o) => clustered.add(o));
+          clusters.push(members);
+        }
+      }
+    }
+    // 二次合并：中心过近的聚合圆彼此遮挡，合为一个
+    const centroid = (ms) => [ms.reduce((a, m) => a + m.sx, 0) / ms.length, ms.reduce((a, m) => a + m.sy, 0) / ms.length];
+    for (let merged = true; merged;) {
+      merged = false;
+      outer: for (let i = 0; i < clusters.length; i++) {
+        for (let j = i + 1; j < clusters.length; j++) {
+          const [ax, ay] = centroid(clusters[i]), [bx, by] = centroid(clusters[j]);
+          if (Math.hypot(ax - bx, ay - by) < 30) {
+            clusters[i] = clusters[i].concat(clusters[j]);
+            clusters.splice(j, 1);
+            merged = true;
+            break outer;
+          }
+        }
+      }
+    }
+    markers.forEach((m) => m.g.classList.toggle('clustered', clustered.has(m)));
+    clusters.forEach((members, i) => {
+      const c = clusterEl(i);
+      const [cx, cy] = centroid(members);
+      c.g._members = members;
+      c.g.style.display = '';
+      c.g.setAttribute('transform', `translate(${cx.toFixed(1)} ${cy.toFixed(1)})`);
+      c.t.textContent = members.length;
+      const names = members.slice(0, 6).map((m) => m.f.name).join('、');
+      c.title.textContent = `${names}${members.length > 6 ? ' 等' : ''} ${members.length} 处 · 点击展开`;
+      c.g.setAttribute('aria-label', c.title.textContent);
+      boxes.push([cx - 18, cy - 18, cx + 18, cy + 18]);
+    });
+    for (let i = clusters.length; i < clusterPool.length; i++) {
+      clusterPool[i].g.style.display = 'none';
+      clusterPool[i].g._members = null;
+    }
+
     const order = [...markers].sort((a, b) => {
       const aPri = (a.hovered || a.g.classList.contains('active')) ? 2 : a.g.classList.contains('dim') ? 0 : 1;
       const bPri = (b.hovered || b.g.classList.contains('active')) ? 2 : b.g.classList.contains('dim') ? 0 : 1;
@@ -352,7 +442,7 @@ export function renderMap(root) {
     for (const m of order) {
       const isDim = m.g.classList.contains('dim');
       const isFocus = m.hovered || m.g.classList.contains('active');
-      if (isDim && !isFocus) {
+      if ((isDim && !isFocus) || clustered.has(m)) {
         m.label.style.opacity = 0;
         m.sub.style.opacity = 0;
         continue;
@@ -360,7 +450,7 @@ export function renderMap(root) {
       const w = m.f.name.length * 14.5 + 32;
       const box = [m.sx + 6 - padX, m.sy - 10 - padY, m.sx + 6 + w + padX, m.sy + 8 + padY];
       const hit = boxes.some((b) => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]));
-      const show = isFocus || !hit || zoomRatio > 4.0;
+      const show = isFocus || !hit;
       m.label.style.opacity = show ? 1 : 0;
       m.sub.style.opacity = show && (isFocus || zoomRatio > 1.35) ? 0.85 : 0;
       if (show) boxes.push(box);
@@ -539,6 +629,17 @@ export function renderMap(root) {
   const eraBar = view.querySelector('.era-bar');
   const roleBar = view.querySelector('.role-bar');
   const visibleCountEl = view.querySelector('.visible-count');
+  const dimToggle = view.querySelector('.dim-toggle');
+  const syncDimToggle = () => {
+    dimToggle.setAttribute('aria-pressed', String(savedHideDim));
+    dimToggle.textContent = savedHideDim ? '淡显未选' : '隐去未选';
+  };
+  syncDimToggle();
+  dimToggle.onclick = () => {
+    savedHideDim = !savedHideDim;
+    syncDimToggle();
+    view.classList.toggle('hide-dim', savedHideDim);
+  };
 
   kindSwitch.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => {
@@ -595,6 +696,14 @@ export function renderMap(root) {
       m.g.classList.toggle('dim', !ok);
     });
     visibleCountEl.textContent = shown;
+    const filtering = savedKind !== 'all' || savedEra !== '全部' || savedRole !== '全部';
+    dimToggle.hidden = !filtering;
+    const nActive = (savedEra !== '全部') + (savedRole !== '全部');
+    fabBadge.hidden = !nActive;
+    fabBadge.textContent = nActive ? `${shown}` : '';
+    fab.classList.toggle('on', !!nActive);
+    view.classList.toggle('hide-dim', filtering && savedHideDim);
+    view.classList.toggle('few-shown', filtering && shown <= 30);
     closePop();
     layout();
     renderRosterList();
@@ -605,16 +714,71 @@ export function renderMap(root) {
   const searchInput = view.querySelector('.rd-search');
   const listEl = view.querySelector('.rd-list');
 
-  view.querySelector('.roster-trigger').onclick = () => {
+  const rosterTrigger = view.querySelector('.roster-trigger');
+  const openDrawer = () => {
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden', 'false');
     renderRosterList();
+    setTimeout(() => searchInput.focus({ preventScroll: true }), 60);
   };
-  view.querySelector('.rd-close').onclick = () => {
+  const closeDrawer = () => {
+    if (!drawer.classList.contains('open')) return;
     drawer.classList.remove('open');
     drawer.setAttribute('aria-hidden', 'true');
+    if (drawer.contains(document.activeElement)) rosterTrigger.focus();
   };
-  searchInput.addEventListener('input', renderRosterList);
+  rosterTrigger.onclick = () => (drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+  view.querySelector('.rd-close').onclick = closeDrawer;
+  searchInput.addEventListener('input', () => { kbIndex = -1; renderRosterList(); });
+
+  // 名录键盘操作：↑↓ 选择、回车飞往、Esc 收起
+  let kbIndex = -1;
+  const setKb = (i) => {
+    const items = [...listEl.querySelectorAll('.rd-item')];
+    if (!items.length) return;
+    kbIndex = Math.max(0, Math.min(items.length - 1, i));
+    items.forEach((b, j) => b.classList.toggle('kb', j === kbIndex));
+    items[kbIndex].scrollIntoView({ block: 'nearest' });
+  };
+  drawer.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setKb(kbIndex + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setKb(kbIndex - 1); }
+    else if (e.key === 'Enter' && e.target === searchInput) {
+      e.preventDefault();
+      const items = listEl.querySelectorAll('.rd-item');
+      (items[kbIndex >= 0 ? kbIndex : 0])?.click();
+    } else if (e.key === 'Escape') { e.stopPropagation(); closeDrawer(); }
+  });
+  // 全局快捷键：/ 打开名录检索，Esc 关闭浮卡/面板
+  const onGlobalKey = (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+    if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !document.querySelector('.modal-backdrop')) {
+      e.preventDefault();
+      openDrawer();
+    } else if (e.key === 'Escape' && !typing) {
+      if (view.classList.contains('sheet-open')) setSheet(false);
+      else if (pop) closePop();
+    }
+  };
+  document.addEventListener('keydown', onGlobalKey);
+
+  // 手机端：筛选栏收为底部弹出面板
+  const fab = view.querySelector('.filter-fab');
+  const fabBadge = view.querySelector('.ff-badge');
+  const sheetBackdrop = view.querySelector('.sheet-backdrop');
+  function setSheet(open) {
+    view.classList.toggle('sheet-open', open);
+    sheetBackdrop.hidden = !open;
+    fab.setAttribute('aria-expanded', String(open));
+    if (open) { closePop(); requestAnimationFrame(updateFades); }
+  }
+  fab.onclick = () => setSheet(!view.classList.contains('sheet-open'));
+  sheetBackdrop.onclick = () => setSheet(false);
+  view.querySelector('.sheet-done').onclick = () => setSheet(false);
+  view.querySelector('.sheet-reset').onclick = () => {
+    savedEra = '全部'; savedRole = '全部';
+    applyFilters();
+  };
 
   function renderRosterList() {
     const q = searchInput.value.trim().toLowerCase();
@@ -635,6 +799,7 @@ export function renderMap(root) {
     });
 
     if (!filtered.length) {
+      kbIndex = -1;
       listEl.innerHTML = `<div class="rd-empty">未寻得匹配的先贤或古迹，可尝试调整筛选条件。</div>`;
       return;
     }
@@ -666,9 +831,7 @@ export function renderMap(root) {
         const fig = ENTITIES.find((f) => f.id === btn.dataset.fid);
         if (!fig) return;
         playZither('jiao');
-        if (window.innerWidth <= 760) {
-          drawer.classList.remove('open');
-        }
+        if (window.innerWidth <= 760) closeDrawer();
         flyToFigure(fig);
       };
     });
@@ -792,6 +955,7 @@ export function renderMap(root) {
     cancelAnimationFrame(raf);
     ro.disconnect();
     barRo.disconnect();
+    document.removeEventListener('keydown', onGlobalKey);
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);

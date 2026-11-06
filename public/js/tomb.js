@@ -29,7 +29,10 @@ export function renderTomb(root, fig) {
       <canvas class="particles"></canvas>
       <header class="top-bar">
         <a class="back-link" href="#/">舆图</a>
-        <a class="back-link" href="#/life/${fig.id}">${isSite ? '遗址考据 · 诗文' : '生平 · 作品'}</a>
+        <nav class="top-links">
+          <a class="back-link" href="#/life/${fig.id}">${isSite ? lbl('遗址考据 · 诗文', '考据') : lbl('生平 · 作品', '生平')}</a>
+          <a class="talk-link" href="#/talk/${fig.id}" data-go-talk><span class="tl-seal" aria-hidden="true">${isSite ? '响' : '语'}</span>${isSite ? lbl('时空回响', '回响') : lbl('古今对话', '对话')}</a>
+        </nav>
       </header>
       <div class="tomb-title">
         <div class="tt-heading">
@@ -49,7 +52,7 @@ export function renderTomb(root, fig) {
         <button class="btn ${night ? 'ghost-light' : ''}" data-act="incense">${isSite ? lbl('点燃胜迹烽火', '燃烽火') : lbl('上一炷香', '上香')}</button>
         <button class="btn ${night ? 'ghost-light' : ''}" data-act="offering">${isSite ? lbl('敬献信物金石', '献信物') : lbl('摆上供品', '供品')}</button>
         <button class="btn zhu" data-act="card">${isSite ? lbl('题壁抒怀寄语', '题壁') : lbl('挂一张缅怀卡', '缅怀卡')}</button>
-        <button class="btn act-secondary ${night ? 'ghost-light' : ''}" data-act="archive">📷 百年旧影 · ${isSite ? '金石考据' : '神道石像生'}</button>
+        <button class="btn act-secondary ${night ? 'ghost-light' : ''}" data-act="archive" title="${isSite ? '百年旧影 · 金石考据' : '百年旧影 · 神道石像生'}">百年旧影</button>
         <button class="btn act-secondary ${night ? 'ghost-light' : ''}" data-act="all">${isSite ? '千秋题壁胜迹录' : '名录与寄语'}</button>
         <div class="act-more-wrap">
           <button class="btn act-more ${night ? 'ghost-light' : ''}" data-act="more" aria-haspopup="menu" aria-expanded="false">更多</button>
@@ -1465,31 +1468,45 @@ export function renderTomb(root, fig) {
   }
 
   function showAll() {
-    if (!cards.length && !offerings.length) return openCardForm();
+    const offTitle = isSite ? '案前信物' : '案前供品';
+    const cardTitle = isSite ? '题壁诗牌' : '枝头寄语';
     const offList = [...offerings].reverse().map((o) => {
       const def = OFFERING_MAP[o.itemId] || OFFERINGS[0];
       return `
-      <button class="all-off" data-id="${o.id}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 0;border-bottom:1px dashed rgba(31,28,24,.18)">
-        <svg viewBox="-26 -54 52 56" style="width:28px;height:28px;flex:none">${def.svg}</svg>
-        <span style="font-family:var(--f-kai);font-size:15px;flex:1"><b>${esc(def.name)}</b> · ${esc(o.note.length > 22 ? o.note.slice(0, 22) + '…' : o.note)}</span>
-        <small style="color:var(--ink-3);font-size:12px">${esc(o.name)}</small>
+      <button type="button" class="ar-row all-off" data-id="${o.id}">
+        <svg class="ar-icon" viewBox="-26 -54 52 56" aria-hidden="true">${def.svg}</svg>
+        <span class="ar-text"><b>${esc(def.name)}</b> · ${esc(o.note)}</span>
+        <small class="ar-by">${esc(o.name)}</small>
       </button>`;
     }).join('');
     const cardList = [...cards].reverse().map((c) => `
-      <button class="all-item" data-id="${c.id}" style="display:block;width:100%;text-align:left;padding:12px 0;border-bottom:1px dashed rgba(31,28,24,.18)">
-        <span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${(CARD_COLORS[c.color] || CARD_COLORS.zhu).fill};margin-right:8px"></span>
-        <span style="font-family:var(--f-kai);font-size:16px">${esc(c.text.length > 30 ? c.text.slice(0, 30) + '…' : c.text)}</span>
-        <small style="float:right;color:var(--ink-3);font-size:12px">${esc(c.name)}</small>
+      <button type="button" class="ar-row all-item" data-id="${c.id}">
+        <i class="ar-swatch" style="background:${(CARD_COLORS[c.color] || CARD_COLORS.zhu).fill}"></i>
+        <span class="ar-text">${esc(c.text)}</span>
+        <small class="ar-by">${esc(c.name)}</small>
       </button>`).join('');
+    const empty = !cards.length && !offerings.length;
     const { modal, close } = openModal(`
       <h3>${isSite ? '千秋题壁与胜迹留存' : '敬奉与寄语'}</h3>
       <p class="sub">${isSite ? `信物 ${offerings.length} 件 · 题壁诗牌 ${cards.length} 首` : `供品 ${offerings.length} 件 · 缅怀卡 ${cards.length} 张`}</p>
-      <div style="margin-top:16px;max-height:54vh;overflow:auto">
-        ${offList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:4px 0 6px">${isSite ? '【案前信物】' : '【案前供品】'}</div>${offList}` : ''}
-        ${cardList ? `<div style="font-family:var(--f-kai);font-size:12px;color:var(--zhu);letter-spacing:.2em;margin:14px 0 6px">${isSite ? '【题壁诗牌】' : '【枝头寄语】'}</div>${cardList}` : ''}
-      </div>`);
-    modal.querySelectorAll('.all-item').forEach((b) => (b.onclick = () => { close(); setTimeout(() => showCard(cards.find((c) => c.id === b.dataset.id)), 260); }));
-    modal.querySelectorAll('.all-off').forEach((b) => (b.onclick = () => { close(); setTimeout(() => showOffering(offerings.find((o) => o.id === b.dataset.id)), 260); }));
+      ${empty ? `
+        <div class="ar-empty">
+          <div class="seal">${isSite ? '留白' : '虚席'}</div>
+          <p>${isSite ? '胜迹题壁尚无人留墨。' : '案前尚空，枝头未挂一纸。'}<br/><small>做第一位${isSite ? '题壁' : '寄语'}的后来人吧。</small></p>
+          <div class="ar-empty-actions">
+            <button type="button" class="btn zhu" data-empty="card">${isSite ? '题壁抒怀' : '挂一张缅怀卡'}</button>
+            <button type="button" class="btn" data-empty="offering">${isSite ? '敬献信物' : '摆上供品'}</button>
+          </div>
+        </div>` : `
+        <div class="ar-list">
+          ${offList ? `<div class="ar-section">【${offTitle}】</div>${offList}` : ''}
+          ${cardList ? `<div class="ar-section">【${cardTitle}】</div>${cardList}` : ''}
+        </div>`}`, { className: 'all-records' });
+    const after = (fn) => { close(); setTimeout(fn, 260); };
+    modal.querySelectorAll('.all-item').forEach((b) => (b.onclick = () => after(() => showCard(cards.find((c) => c.id === b.dataset.id)))));
+    modal.querySelectorAll('.all-off').forEach((b) => (b.onclick = () => after(() => showOffering(offerings.find((o) => o.id === b.dataset.id)))));
+    modal.querySelector('[data-empty="card"]')?.addEventListener('click', () => after(openCardForm));
+    modal.querySelector('[data-empty="offering"]')?.addEventListener('click', () => after(openOfferingForm));
   }
 
   function openCardForm() {
@@ -1533,6 +1550,37 @@ export function renderTomb(root, fig) {
     };
   }
 
+  // 上香按日计：同一浏览器同一天对同一位只计一次，避免刷新刷高香火
+  const litKey = `huaigu_lit_${fig.id}`;
+  const today = new Date().toDateString();
+  const markLitToday = () => { try { localStorage.setItem(litKey, today); } catch {} };
+  const incenseBtn = view.querySelector('[data-act="incense"]');
+  const setIncenseBtn = () => {
+    incenseBtn.innerHTML = isSite ? lbl('今日烽火已燃', '已燃') : lbl('今日已敬香', '已敬香');
+    incenseBtn.classList.add('done');
+  };
+  try {
+    if (localStorage.getItem(litKey) === today) {
+      lit = true;
+      setIncenseBtn();
+      setTimeout(() => incense?.light(), 400);
+    }
+  } catch {}
+  let flashTimer = 0;
+  const flashCount = (text) => {
+    clearTimeout(flashTimer);
+    countEl.textContent = text;
+    countEl.classList.add('flash');
+    flashTimer = setTimeout(() => { countEl.classList.remove('flash'); updateCount(); }, 2200);
+  };
+
+  // 顶栏「古今对话」入口：与轻触碑石一致的墨滴转场
+  view.querySelector('[data-go-talk]').addEventListener('click', (e) => {
+    e.preventDefault();
+    playTravelSound();
+    inkTravel({ x: e.clientX, y: e.clientY, text: isSite ? '时空回响' : '穿越千年' }, () => (location.hash = `#/talk/${fig.id}`));
+  });
+
   // 「更多」菜单（窄屏下收纳次要操作）
   const moreBtn = view.querySelector('.act-more');
   const moreMenu = view.querySelector('.act-more-menu');
@@ -1556,11 +1604,13 @@ export function renderTomb(root, fig) {
     if (act === 'offering') openOfferingForm();
     if (act === 'all') showAll();
     if (act === 'archive') openArchiveModal(fig);
-    if (act === 'incense' && !lit) {
+    if (act === 'incense') {
+      if (lit) return flashCount(isSite ? '今日烽火已燃，明日再来续火' : '今日已敬香，心意已达，明日再来');
       lit = true;
+      markLitToday();
       panTo('stele');
       incense?.light();
-      btn.innerHTML = isSite ? lbl('胜迹烽火已燃', '烽火已燃') : lbl('香火已续', '已上香');
+      setIncenseBtn();
       try { incenseCount = (await api.incense(fig.id)).incense; updateCount(); } catch {}
     }
   });
