@@ -19,8 +19,10 @@ export function renderTomb(root, fig) {
   const sc = fig.scene;
   const isSite = fig.kind === 'site';
   const night = lum(sc.sky[0]) < 0.35;
-  const isNarrow = typeof window !== 'undefined' && window.innerWidth / (window.innerHeight || 1) < 1;
-  const initialVB = isNarrow ? `${TX - 450} 0 900 ${VB_H}` : `0 0 ${VB_W} ${VB_H}`;
+  const initialVB = `0 0 ${VB_W} ${VB_H}`;
+  const treeLabel = isSite ? '题壁' : (sc.tree?.name || '古树');
+  const steleLabel = isSite ? '碑铭' : '墓碑';
+  const lbl = (long, short) => `<span class="lbl-long">${long}</span><span class="lbl-short">${short}</span>`;
   const view = html(`
     <section class="view tomb-view ${night ? 'night' : ''}">
       <svg class="tomb-svg" viewBox="${initialVB}" preserveAspectRatio="xMidYMax slice"></svg>
@@ -37,23 +39,106 @@ export function renderTomb(root, fig) {
         <p>${esc(fig.dynasty)} · ${esc(fig.years)} · ${esc(fig.role || '')}</p>
         <p class="tt-tree">${esc(fig.place)} · ${esc(sc.archLabel || '历史胜迹')} · ${isSite ? '胜迹题壁抒怀' : '墓旁' + esc(sc.tree.name)}</p>
       </div>
+      <div class="scene-pager" role="group" aria-label="场景取景切换" hidden>
+        <button type="button" data-stop="stele" class="on">${steleLabel}</button>
+        <i aria-hidden="true"></i>
+        <button type="button" data-stop="tree">${esc(treeLabel)}</button>
+      </div>
       <div class="tomb-count"></div>
       <div class="tomb-actions">
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="incense">${isSite ? '点燃胜迹烽火' : '上一炷香'}</button>
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="offering">${isSite ? '敬献信物金石' : '摆上供品'}</button>
-        <button class="btn zhu" data-act="card">${isSite ? '题壁抒怀寄语' : '挂一张缅怀卡'}</button>
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="archive">📷 百年旧影 · ${isSite ? '金石考据' : '神道石像生'}</button>
-        <button class="btn ${night ? 'ghost-light' : ''}" data-act="all">${isSite ? '千秋题壁胜迹录' : '名录与寄语'}</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="incense">${isSite ? lbl('点燃胜迹烽火', '燃烽火') : lbl('上一炷香', '上香')}</button>
+        <button class="btn ${night ? 'ghost-light' : ''}" data-act="offering">${isSite ? lbl('敬献信物金石', '献信物') : lbl('摆上供品', '供品')}</button>
+        <button class="btn zhu" data-act="card">${isSite ? lbl('题壁抒怀寄语', '题壁') : lbl('挂一张缅怀卡', '缅怀卡')}</button>
+        <button class="btn act-secondary ${night ? 'ghost-light' : ''}" data-act="archive">📷 百年旧影 · ${isSite ? '金石考据' : '神道石像生'}</button>
+        <button class="btn act-secondary ${night ? 'ghost-light' : ''}" data-act="all">${isSite ? '千秋题壁胜迹录' : '名录与寄语'}</button>
+        <div class="act-more-wrap">
+          <button class="btn act-more ${night ? 'ghost-light' : ''}" data-act="more" aria-haspopup="menu" aria-expanded="false">更多</button>
+          <div class="act-more-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-act="archive">📷 ${isSite ? '百年旧影 · 金石考据' : '百年旧影 · 石像生'}</button>
+            <button type="button" role="menuitem" data-act="all">${isSite ? '千秋题壁胜迹录' : '名录与寄语'}</button>
+          </div>
+        </div>
       </div>
     </section>`);
   root.appendChild(view);
 
   const svg = view.querySelector('svg');
-  const updateViewBox = () => {
-    const narrow = window.innerWidth / (window.innerHeight || 1) < 1;
-    svg.setAttribute('viewBox', narrow ? `${TX - 450} 0 900 ${VB_H}` : `0 0 ${VB_W} ${VB_H}`);
+
+  // ======== 取景：窄屏时碑与树无法同屏，允许左右拖动并在「墓碑 / 古树」两处停驻 ========
+  const pager = view.querySelector('.scene-pager');
+  const STOPS = { stele: TX, tree: TREE_X };
+  let vbW = VB_W, panMode = false, panCx = TX, panRaf = 0;
+  const clampCx = (cx) => Math.max(vbW / 2, Math.min(VB_W - vbW / 2, Math.max(TX - 120, Math.min(TREE_X + 60, cx))));
+  const applyPan = () => {
+    svg.setAttribute('viewBox', panMode ? `${(panCx - vbW / 2).toFixed(1)} 0 ${vbW.toFixed(1)} ${VB_H}` : `0 0 ${VB_W} ${VB_H}`);
+    const near = Math.abs(panCx - STOPS.tree) < Math.abs(panCx - STOPS.stele) ? 'tree' : 'stele';
+    pager.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.stop === near));
   };
-  window.addEventListener('resize', updateViewBox);
+  const panTo = (stop, ms = 520) => {
+    if (!panMode) return;
+    cancelAnimationFrame(panRaf);
+    const from = panCx, to = clampCx(STOPS[stop] ?? stop), t0 = performance.now();
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - p, 3);
+      panCx = from + (to - from) * e;
+      applyPan();
+      if (p < 1) panRaf = requestAnimationFrame(step);
+    };
+    panRaf = requestAnimationFrame(step);
+  };
+  const updateViewBox = () => {
+    const w = svg.clientWidth || window.innerWidth, h = svg.clientHeight || window.innerHeight;
+    if (!w || !h) return;
+    // preserveAspectRatio=slice + 以高度适配时，可见的 viewBox 宽度
+    vbW = Math.min(VB_W, VB_H * (w / h));
+    panMode = vbW < (TREE_X + 200) - (TX - 180);
+    pager.hidden = !panMode;
+    view.classList.toggle('pan-mode', panMode);
+    panCx = clampCx(panCx);
+    applyPan();
+  };
+  pager.addEventListener('click', (e) => {
+    const stop = e.target.closest('button')?.dataset.stop;
+    if (stop) panTo(stop);
+  });
+  // 拖动平移（仅窄屏取景模式）；拖动后屏蔽误触碑石穿越
+  let drag = null, dragMoved = false;
+  svg.addEventListener('pointerdown', (e) => {
+    if (!panMode || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    cancelAnimationFrame(panRaf);
+    drag = { x: e.clientX, y: e.clientY, cx: panCx, id: e.pointerId };
+    dragMoved = false;
+  });
+  const onPanMove = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!dragMoved && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(e.clientY - drag.y)) dragMoved = true;
+    if (!dragMoved) return;
+    panCx = clampCx(drag.cx - dx * (vbW / (svg.clientWidth || 1)));
+    applyPan();
+  };
+  const onPanUp = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const startCx = drag.cx;
+    drag = null;
+    if (dragMoved) {
+      // 松手后吸附：滑动超过一成画幅即按方向翻到下一处，否则回到最近的停驻点
+      const delta = panCx - startCx;
+      const target = Math.abs(delta) > vbW * 0.12
+        ? (delta > 0 ? 'tree' : 'stele')
+        : (Math.abs(panCx - STOPS.tree) < Math.abs(panCx - STOPS.stele) ? 'tree' : 'stele');
+      panTo(target, 380);
+      setTimeout(() => (dragMoved = false), 0);
+    }
+  };
+  window.addEventListener('pointermove', onPanMove);
+  window.addEventListener('pointerup', onPanUp);
+  window.addEventListener('pointercancel', onPanUp);
+  svg.addEventListener('click', (e) => {
+    if (dragMoved) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+  const vbRo = new ResizeObserver(updateViewBox);
+  vbRo.observe(svg);
   const R = rng(fig.id);
   const r = (a, b) => a + R() * (b - a);
   const defs = svgEl('defs', {}, svg);
@@ -1336,6 +1421,7 @@ export function renderTomb(root, fig) {
         offerings.push(offering);
         playOfferingSound();
         close();
+        panTo('stele');
         renderOfferings(offering.id);
         updateCount();
       } catch (err) {
@@ -1438,6 +1524,7 @@ export function renderTomb(root, fig) {
         cards.push(card);
         playOfferingSound();
         close();
+        panTo('tree');
         renderTags(card.id);
         updateCount();
       } catch (err) {
@@ -1446,16 +1533,34 @@ export function renderTomb(root, fig) {
     };
   }
 
+  // 「更多」菜单（窄屏下收纳次要操作）
+  const moreBtn = view.querySelector('.act-more');
+  const moreMenu = view.querySelector('.act-more-menu');
+  const setMenu = (open) => {
+    moreMenu.hidden = !open;
+    moreBtn.setAttribute('aria-expanded', String(open));
+    if (open) moreMenu.querySelector('button')?.focus();
+  };
+  const onDocDown = (e) => { if (!moreMenu.hidden && !e.target.closest('.act-more-wrap')) setMenu(false); };
+  const onDocKey = (e) => { if (e.key === 'Escape' && !moreMenu.hidden) { setMenu(false); moreBtn.focus(); } };
+  document.addEventListener('pointerdown', onDocDown);
+  document.addEventListener('keydown', onDocKey);
+
   view.querySelector('.tomb-actions').addEventListener('click', async (e) => {
-    const act = e.target.closest('button')?.dataset.act;
+    const btn = e.target.closest('button');
+    const act = btn?.dataset.act;
+    if (!act) return;
+    if (act === 'more') return setMenu(moreMenu.hidden);
+    setMenu(false);
     if (act === 'card') openCardForm();
     if (act === 'offering') openOfferingForm();
     if (act === 'all') showAll();
     if (act === 'archive') openArchiveModal(fig);
     if (act === 'incense' && !lit) {
       lit = true;
+      panTo('stele');
       incense?.light();
-      e.target.textContent = isSite ? '胜迹烽火已燃' : '香火已续';
+      btn.innerHTML = isSite ? lbl('胜迹烽火已燃', '烽火已燃') : lbl('香火已续', '已上香');
       try { incenseCount = (await api.incense(fig.id)).incense; updateCount(); } catch {}
     }
   });
@@ -1470,7 +1575,13 @@ export function renderTomb(root, fig) {
   }).catch(() => updateCount());
 
   return () => {
-    window.removeEventListener('resize', updateViewBox);
+    vbRo.disconnect();
+    cancelAnimationFrame(panRaf);
+    window.removeEventListener('pointermove', onPanMove);
+    window.removeEventListener('pointerup', onPanUp);
+    window.removeEventListener('pointercancel', onPanUp);
+    document.removeEventListener('pointerdown', onDocDown);
+    document.removeEventListener('keydown', onDocKey);
     stopParticles();
   };
 }

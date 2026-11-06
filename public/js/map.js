@@ -113,8 +113,8 @@ function smoothClosed(points) {
   return d + 'Z';
 }
 
-// 视图状态在页面间保留，返回舆图时不重置
-let saved = null;
+// 视图状态在页面间保留，返回舆图时不重置（连同当时的视口尺寸，便于尺寸变化后保持中心）
+let saved = null; // { state, w, h, userMoved }
 let savedEra = '全部';
 let savedRole = '全部';
 let savedKind = 'all'; // 'all' | 'figure' | 'site'
@@ -123,6 +123,10 @@ export function renderMap(root) {
   const view = html(`
     <section class="view map-view">
       <svg class="map-svg"></svg>
+      <div class="map-loading" role="status" aria-live="polite">
+        <div class="ml-ink"></div>
+        <div class="ml-text">展 卷 中</div>
+      </div>
       <div class="brand">
         <div class="brand-title">怀古</div>
         <div class="brand-col">
@@ -202,9 +206,19 @@ export function renderMap(root) {
     svgEl('path', { class: 'map-river', d: smooth(pts) }, world);
   }
 
+  const loadingEl = view.querySelector('.map-loading');
+  const finishLoading = () => {
+    view.classList.add('map-ready');
+    loadingEl.classList.add('done');
+    setTimeout(() => loadingEl.remove(), 700);
+  };
   loadGeo().then((d) => {
     land.setAttribute('d', d);
     shadow.setAttribute('d', d);
+    finishLoading();
+  }).catch(() => {
+    loadingEl.querySelector('.ml-text').textContent = '舆图展卷失败 · 请刷新重试';
+    view.classList.add('map-ready');
   });
 
   // 屏幕层：古九州水印、山形、地理注记
@@ -354,7 +368,17 @@ export function renderMap(root) {
     if (pop && pop._m) placePop(pop._m);
   }
 
+  // 名录抽屉在宽屏下常驻右侧时，地图可视区域需扣除其宽度
+  const rightInset = () => {
+    const d = view.querySelector('.roster-drawer');
+    return d && d.classList.contains('open') && window.innerWidth > 760 ? d.offsetWidth : 0;
+  };
+  // 用户是否手动平移/缩放过：未动过时尺寸变化自动重新居中，动过则保持视觉中心
+  let userMoved = false;
+  let lastSize = { w: 0, h: 0 };
+
   function fitView() {
+    if (W() <= 0 || H() <= 0) return { ...(fit || state) };
     const [x0, y0] = project(73, 54), [x1] = project(135, 40), [, y1] = project(110, 17.5);
     const xl = project(73, 40)[0];
     const bw = x1 - xl, bh = y1 - y0;
@@ -363,12 +387,29 @@ export function renderMap(root) {
     return { ...fit };
   }
 
-  state = saved ? { ...saved } : fitView();
-  if (!fit) fitView();
-  layout();
+  function initView() {
+    if (W() <= 0 || H() <= 0) return false;
+    fitView();
+    if (saved) {
+      // 恢复上次视图，并按视口尺寸差平移，保持原先的视觉中心
+      state = {
+        k: saved.state.k,
+        x: saved.state.x + (W() - saved.w) / 2,
+        y: saved.state.y + (H() - saved.h) / 2,
+      };
+      userMoved = saved.userMoved;
+    } else {
+      state = { ...fit };
+    }
+    lastSize = { w: W(), h: H() };
+    return true;
+  }
+  let ready = initView();
+  if (ready) layout();
 
   const clampK = (k) => Math.max(fit.k * 0.7, Math.min(fit.k * 10, k));
   function zoomAt(px, py, factor, animate = false) {
+    userMoved = true;
     const k2 = clampK(state.k * factor);
     const f = k2 / state.k;
     const target = { k: k2, x: px - (px - state.x) * f, y: py - (py - state.y) * f };
@@ -392,8 +433,9 @@ export function renderMap(root) {
   function flyToFigure(f) {
     const m = markers.find((item) => item.f.id === f.id);
     if (!m) return;
+    userMoved = true;
     const targetK = Math.max(state.k, fit.k * 2.8);
-    const targetX = W() / 2 - m.p[0] * targetK;
+    const targetX = (W() - rightInset()) / 2 - m.p[0] * targetK;
     const targetY = H() / 2 - m.p[1] * targetK;
     animateTo({ k: targetK, x: targetX, y: targetY }, 600, () => {
       openPop(f, m.g);
@@ -435,6 +477,7 @@ export function renderMap(root) {
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
     if (!moved && Math.hypot(dx, dy) > 6) {
       moved = true;
+      userMoved = true;
       svg.classList.add('dragging');
     }
     if (moved) {
@@ -488,7 +531,7 @@ export function renderMap(root) {
     const z = e.target.closest('button')?.dataset.z;
     if (z === 'in') zoomAt(W() / 2, H() / 2, 1.6, true);
     if (z === 'out') zoomAt(W() / 2, H() / 2, 1 / 1.6, true);
-    if (z === 'reset') animateTo(fitView());
+    if (z === 'reset') { userMoved = false; animateTo(fitView()); }
   });
 
   // 顶部图层切换与筛选
@@ -538,6 +581,7 @@ export function renderMap(root) {
 
   function applyFilters() {
     kindSwitch.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.kind === savedKind));
+    requestAnimationFrame(updateFades);
     [...eraBar.children].forEach((b) => b.classList.toggle('on', b.dataset.era === savedEra));
     roleBar.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.role === savedRole));
 
@@ -630,6 +674,26 @@ export function renderMap(root) {
     });
   }
 
+  // 筛选栏可横向滑动时，在可继续滑动的一侧显示渐隐遮罩
+  const updateFade = (bar) => {
+    const max = bar.scrollWidth - bar.clientWidth;
+    bar.classList.toggle('fade-l', max > 2 && bar.scrollLeft > 2);
+    bar.classList.toggle('fade-r', max > 2 && bar.scrollLeft < max - 2);
+  };
+  const updateFades = () => { updateFade(roleBar); updateFade(eraBar); };
+  [roleBar, eraBar].forEach((bar) => {
+    bar.addEventListener('scroll', () => updateFade(bar), { passive: true });
+    // 桌面端鼠标滚轮纵向滚动转为横向滑动
+    bar.addEventListener('wheel', (e) => {
+      if (bar.scrollWidth <= bar.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      bar.scrollLeft += e.deltaY;
+    }, { passive: false });
+  });
+  const barRo = new ResizeObserver(updateFades);
+  barRo.observe(roleBar);
+  barRo.observe(eraBar);
+
   rebuildRoleBar();
   applyFilters();
 
@@ -688,7 +752,9 @@ export function renderMap(root) {
     if (window.innerWidth <= 760) return;
     const pw = 325, ph = pop.offsetHeight || 260;
     let left = m.sx + 24, top = m.sy - ph / 2;
-    if (left + pw > W() - 16) left = m.sx - pw - 24;
+    const maxRight = W() - rightInset() - 16;
+    if (left + pw > maxRight) left = m.sx - pw - 24;
+    left = Math.max(16, left);
     top = Math.max(16, Math.min(H() - ph - 115, top));
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
@@ -702,15 +768,32 @@ export function renderMap(root) {
     layout();
   }
 
-  const onResize = () => { fitView(); layout(); };
-  window.addEventListener('resize', onResize);
+  // 尺寸变化（首屏容器尚未布局、窗口缩放、手机横竖屏切换）
+  const onResize = () => {
+    const w = W(), h = H();
+    if (w <= 0 || h <= 0) return;
+    if (!ready) { ready = initView(); layout(); return; }
+    if (w === lastSize.w && h === lastSize.h) return;
+    fitView();
+    if (!userMoved) {
+      cancelAnimationFrame(raf);
+      state = { ...fit };
+    } else {
+      state = { ...state, x: state.x + (w - lastSize.w) / 2, y: state.y + (h - lastSize.h) / 2 };
+    }
+    lastSize = { w, h };
+    layout();
+  };
+  const ro = new ResizeObserver(onResize);
+  ro.observe(svg);
 
   return () => {
-    saved = { ...state };
+    if (ready) saved = { state: { ...state }, w: lastSize.w, h: lastSize.h, userMoved };
     cancelAnimationFrame(raf);
+    ro.disconnect();
+    barRo.disconnect();
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
-    window.removeEventListener('resize', onResize);
   };
 }
