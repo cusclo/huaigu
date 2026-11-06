@@ -169,10 +169,10 @@ export function renderMap(root) {
         <nav class="era-bar" aria-label="历史朝代筛选"></nav>
       </div>
       <div class="map-tools">
-        <button class="icon-btn sound-toggle" title="金石声律切换"><span class="sound-icon">${isSoundEnabled() ? '🎵' : '🔇'}</span></button>
-        <button class="icon-btn" data-z="in" title="放大">＋</button>
-        <button class="icon-btn" data-z="out" title="缩小">－</button>
-        <button class="icon-btn" data-z="reset" title="复位">◎</button>
+        <button class="icon-btn sound-toggle" type="button" title="金石声律切换" aria-label="金石声律" aria-pressed="${isSoundEnabled()}"><span class="sound-icon" aria-hidden="true">${isSoundEnabled() ? '🎵' : '🔇'}</span></button>
+        <button class="icon-btn" type="button" data-z="in" title="放大" aria-label="放大舆图">＋</button>
+        <button class="icon-btn" type="button" data-z="out" title="缩小" aria-label="缩小舆图">－</button>
+        <button class="icon-btn" type="button" data-z="reset" title="复位" aria-label="复位舆图视野">◎</button>
       </div>
       <aside class="roster-drawer" aria-hidden="true">
         <div class="rd-head">
@@ -259,7 +259,10 @@ export function renderMap(root) {
   const markers = ENTITIES.map((f, i) => {
     const roleColor = ROLE_META[f.role]?.color || '#a8322d';
     const isSite = f.kind === 'site';
-    const g = svgEl('g', { class: `marker ${isSite ? 'is-site' : 'is-figure'}`, tabindex: 0 }, markerLayer);
+    const g = svgEl('g', {
+      class: `marker ${isSite ? 'is-site' : 'is-figure'}`, tabindex: -1, role: 'button',
+      'aria-label': `${f.name} · ${isSite ? f.role : f.dynasty} · ${f.place}`,
+    }, markerLayer);
 
     // 点击热区
     svgEl('circle', { class: 'm-hit', r: 13, fill: 'transparent' }, g);
@@ -291,7 +294,9 @@ export function renderMap(root) {
       e.stopPropagation();
       openPop(f, g);
     });
-    g.addEventListener('keydown', (e) => e.key === 'Enter' && openPop(f, g));
+    g.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPop(f, g); }
+    });
     return mObj;
   });
 
@@ -455,6 +460,13 @@ export function renderMap(root) {
       m.sub.style.opacity = show && (isFocus || zoomRatio > 1.35) ? 0.85 : 0;
       if (show) boxes.push(box);
     }
+    // 键盘 Tab 仅停留在视口内、可见且未被聚合的印记上，避免 161 个焦点
+    const vw = W(), vh = H();
+    for (const m of markers) {
+      const reachable = m.sx > 0 && m.sx < vw && m.sy > 0 && m.sy < vh && !clustered.has(m) && !m.g.classList.contains('dim');
+      const ti = reachable ? '0' : '-1';
+      if (m.g.getAttribute('tabindex') !== ti) m.g.setAttribute('tabindex', ti);
+    }
     if (pop && pop._m) placePop(pop._m);
   }
 
@@ -472,7 +484,9 @@ export function renderMap(root) {
     const [x0, y0] = project(73, 54), [x1] = project(135, 40), [, y1] = project(110, 17.5);
     const xl = project(73, 40)[0];
     const bw = x1 - xl, bh = y1 - y0;
-    const k = Math.min((W() - 80) / bw, (H() - 165) / bh);
+    // 为顶部标识与底部筛选预留的纵向空间；矮屏（横屏手机）筛选已收为面板，少留一些
+    const reserveY = H() < 500 ? 70 : 165;
+    const k = Math.min((W() - 80) / bw, (H() - reserveY) / bh);
     fit = { k, x: (W() - bw * k) / 2 - xl * k, y: (H() - bh * k) / 2 - y0 * k + 6 };
     return { ...fit };
   }
@@ -614,6 +628,7 @@ export function renderMap(root) {
       const on = toggleSound();
       soundBtn.querySelector('.sound-icon').textContent = on ? '🎵' : '🔇';
       soundBtn.title = on ? '金石声律已开' : '金石声律已静音';
+      soundBtn.setAttribute('aria-pressed', String(on));
     };
   }
 
@@ -706,7 +721,8 @@ export function renderMap(root) {
     view.classList.toggle('few-shown', filtering && shown <= 30);
     closePop();
     layout();
-    renderRosterList();
+    // 名录抽屉关闭时不渲染（避免每次筛选都重建 161 条带画像的条目）
+    if (drawer.classList.contains('open')) renderRosterList();
   }
 
   // 名录抽屉与全文检索
@@ -891,15 +907,20 @@ export function renderMap(root) {
         <div class="fp-actions">
           <a class="btn zhu" href="#/tomb/${f.id}">${isSite ? '凭吊遗址' : '拜谒墓园'}</a>
           <a class="btn" href="#/life/${f.id}">${isSite ? '遗址考略' : '生平事迹'}</a>
-          ${!isSite ? `<a class="btn fp-talk-btn" href="#/talk/${f.id}">古今对话</a>` : ''}
+          <a class="btn fp-talk-btn" href="#/talk/${f.id}">${isSite ? '时空回响' : '古今对话'}</a>
         </div>
       </div>`);
 
     pop._m = markers.find((m) => m.g === g);
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', `${f.name} · ${isSite ? '古迹' : '先贤'}简介`);
+    // 由键盘打开时把焦点移入浮卡，关闭后归还
+    pop._return = document.activeElement === g ? g : null;
     pop.querySelector('.fp-close').onclick = closePop;
     pop.addEventListener('pointerdown', (e) => e.stopPropagation());
     view.appendChild(pop);
     placePop(pop._m);
+    if (pop._return) pop.querySelector('.fp-actions a')?.focus({ preventScroll: true });
 
     api.counts().then(({ counts, offeringCounts }) => {
       const nc = counts?.[f.id] || 0;
@@ -925,7 +946,10 @@ export function renderMap(root) {
 
   function closePop() {
     if (!pop) return;
+    const ret = pop._return;
+    const hadFocus = pop.contains(document.activeElement);
     pop.remove();
+    if (ret && hadFocus && ret.isConnected) ret.focus({ preventScroll: true });
     pop = null;
     markers.forEach((m) => m.g.classList.remove('active'));
     layout();
