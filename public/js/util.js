@@ -36,23 +36,51 @@ export const CARD_COLORS = {
   xing: { name: '杏黄', fill: '#dcb85e', text: '#3a2c14' },
 };
 
-export function openModal(inner, { className = '', onClose } = {}) {
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+export function openModal(inner, { className = '', onClose, label = '' } = {}) {
   const root = document.getElementById('modal-root');
-  const backdrop = html(`<div class="modal-backdrop"><div class="modal ${className}"><button class="modal-close" aria-label="关闭">×</button></div></div>`);
+  const returnTo = document.activeElement;
+  const backdrop = html(`<div class="modal-backdrop"><div class="modal ${className}" role="dialog" aria-modal="true" tabindex="-1"><button class="modal-close" aria-label="关闭">×</button></div></div>`);
   const modal = backdrop.querySelector('.modal');
   if (typeof inner === 'string') modal.insertAdjacentHTML('beforeend', inner);
   else modal.appendChild(inner);
+  const heading = modal.querySelector('h3, .letter-to, .sh-head h3');
+  if (label) modal.setAttribute('aria-label', label);
+  else if (heading) {
+    heading.id ||= `mh-${Math.random().toString(36).slice(2, 8)}`;
+    modal.setAttribute('aria-labelledby', heading.id);
+  }
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     backdrop.style.animation = 'fade .25s ease reverse forwards';
     setTimeout(() => backdrop.remove(), 240);
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
+    // 焦点归还给打开弹窗的控件
+    if (returnTo && returnTo.isConnected && typeof returnTo.focus === 'function') returnTo.focus({ preventScroll: true });
     onClose && onClose();
   };
-  const onKey = (e) => e.key === 'Escape' && close();
+  const onKey = (e) => {
+    // 只处理最上层弹窗
+    if (root.lastElementChild !== backdrop) return;
+    if (e.key === 'Escape') { e.stopPropagation(); close(); return; }
+    if (e.key !== 'Tab') return;
+    // 焦点圈定在弹窗内
+    const items = [...modal.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+    if (!items.length) { e.preventDefault(); modal.focus(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === modal)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
   backdrop.addEventListener('click', (e) => e.target === backdrop && close());
   modal.querySelector('.modal-close').onclick = close;
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true);
   root.appendChild(backdrop);
+  // 初始焦点：首个表单控件，否则弹窗本身
+  const firstField = modal.querySelector('input, textarea, select');
+  (firstField || modal).focus({ preventScroll: true });
   return { modal, close };
 }
 

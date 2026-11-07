@@ -64,7 +64,7 @@ ${identityIntro}
 
     if (!dsRes.ok) {
       const err = await dsRes.text();
-      return new Response(JSON.stringify({ delta: `（时空微澜）……连接受阻：${err.slice(0, 80)}` }) + '\n', {
+      return new Response(JSON.stringify({ delta: `（时空微澜）……连接受阻：${err.slice(0, 80)}`, fallback: true }) + '\n', {
         headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
       });
     }
@@ -113,7 +113,7 @@ ${identityIntro}
       },
     });
   } catch (err) {
-    return new Response(JSON.stringify({ delta: `（松风微动）……今夕时空稍有阻隔，君不妨稍后再问。` }) + '\n', {
+    return new Response(JSON.stringify({ delta: `（松风微动）……今夕时空稍有阻隔，君不妨稍后再问。`, fallback: true }) + '\n', {
       headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
     });
   }

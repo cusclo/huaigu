@@ -259,7 +259,13 @@ export function getPortraitInfo(entity) {
   const isSite = entity.kind === 'site';
   const meta = isSite ? SITE_PORTRAITS[entity.id] : FIGURE_PORTRAITS[entity.id];
   // 优先加载本地公版博物馆高精典藏画像与实景底片
-  const localUrl = isSite ? `./img/sites/${entity.id}.jpg` : `./img/portraits/${entity.id}.jpg`;
+  const dir = isSite ? './img/sites' : './img/portraits';
+  const localUrl = `${dir}/${entity.id}.jpg`;
+  // 按需加载的 WebP 缩略图（scripts/build_thumbs.sh 生成），原图作回退
+  const thumbs = entity.portraitUrl ? null : {
+    sm: `${dir}/thumb/sm/${entity.id}.webp`,
+    md: `${dir}/thumb/md/${entity.id}.webp`,
+  };
   const remoteUrl = meta?.file ? `${WIKI_COMMONS_BASE}${meta.file}?width=420` : null;
   const url = entity.portraitUrl || localUrl;
   const title = meta?.title || (isSite ? `${entity.name}实景风貌` : `${entity.name}历史画像`);
@@ -270,6 +276,7 @@ export function getPortraitInfo(entity) {
 
   return {
     url,
+    thumbs,
     remoteUrl,
     title,
     author,
@@ -293,18 +300,25 @@ export function getPortraitInfo(entity) {
 export function renderPortraitHtml(entity, size = 'md', extraClass = '') {
   if (!entity) return '';
   const info = getPortraitInfo(entity);
-  const { url, remoteUrl, title, author, roleColor, isSite, name } = info;
+  const { url, thumbs, remoteUrl, title, author, roleColor, isSite, name } = info;
   const siteCls = isSite ? 'is-site-portrait' : 'is-figure-portrait';
+  // 小头像用 96px，浮卡/生平大图用 360px；缩略图缺失时依次回退原图 → 远程典藏 → 金石拓片
+  const src = thumbs ? (size === 'sm' || size === 'dialogue' ? thumbs.sm : thumbs.md) : url;
+  const onerr = `var d=this.dataset;`
+    + `if(!d.triedLocal&&'${esc(url)}'!==this.getAttribute('src')){d.triedLocal='1';this.src='${esc(url)}';}`
+    + `else if(!d.triedRemote&&'${remoteUrl ? esc(remoteUrl) : ''}'){d.triedRemote='1';this.src='${remoteUrl ? esc(remoteUrl) : ''}';}`
+    + `else{this.style.display='none';this.parentElement.classList.add('pa-fallback-only');}`;
 
   return `
     <div class="portrait-avatar pa-${size} ${siteCls} ${extraClass}" data-fid="${esc(entity.id)}" title="${esc(title)}（${esc(author)}）">
       ${url ? `
         <img class="pa-img"
-             src="${esc(url)}"
+             src="${esc(src)}"
              alt="${esc(name)}"
              loading="lazy"
+             decoding="async"
              onload="this.parentElement.classList.add('pa-loaded')"
-             onerror="if(!this.dataset.triedRemote && '${remoteUrl || ''}'){this.dataset.triedRemote='1';this.src='${remoteUrl || ''}';}else{this.style.display='none';this.parentElement.classList.add('pa-fallback-only');}" />
+             onerror="${onerr}" />
       ` : ''}
       <div class="pa-fallback" style="--role-color:${roleColor}" aria-hidden="true">
         <div class="pa-rubbing-wrap">

@@ -113,16 +113,21 @@ function smoothClosed(points) {
   return d + 'Z';
 }
 
-// 视图状态在页面间保留，返回舆图时不重置
-let saved = null;
+// 视图状态在页面间保留，返回舆图时不重置（连同当时的视口尺寸，便于尺寸变化后保持中心）
+let saved = null; // { state, w, h, userMoved }
 let savedEra = '全部';
 let savedRole = '全部';
 let savedKind = 'all'; // 'all' | 'figure' | 'site'
+let savedHideDim = false; // 筛选时隐去未选印记（而非淡显）
 
 export function renderMap(root) {
   const view = html(`
     <section class="view map-view">
       <svg class="map-svg"></svg>
+      <div class="map-loading" role="status" aria-live="polite">
+        <div class="ml-ink"></div>
+        <div class="ml-text">展 卷 中</div>
+      </div>
       <div class="brand">
         <div class="brand-title">怀古</div>
         <div class="brand-col">
@@ -141,21 +146,33 @@ export function renderMap(root) {
             <button type="button" data-kind="figure">● 先贤陵墓</button>
             <button type="button" data-kind="site">◆ 名胜古迹</button>
           </div>
-          <button class="roster-trigger" type="button" title="打开百贤与古迹名录检索">
+          <button class="dim-toggle" type="button" hidden aria-pressed="false" title="筛选时隐去或淡显未选中的印记">隐去未选</button>
+          <button class="roster-trigger" type="button" title="打开百贤与古迹名录检索（快捷键 /）">
             <span class="rt-seal">录</span>
             <span>名录检索</span>
           </button>
         </div>
       </div>
-      <div class="filter-dock">
+      <button class="filter-fab" type="button" aria-expanded="false">
+        <span class="ff-icon" aria-hidden="true">筛</span><span class="ff-text">筛选</span><em class="ff-badge" hidden></em>
+      </button>
+      <div class="sheet-backdrop" hidden></div>
+      <div class="filter-dock" id="map-filter-dock">
+        <div class="sheet-head">
+          <b>筛选印记</b>
+          <button type="button" class="sheet-reset">重置</button>
+          <button type="button" class="sheet-done">完成</button>
+        </div>
+        <div class="sheet-label">身份 · 类别</div>
         <nav class="role-bar" aria-label="人物身份与古迹类别筛选"></nav>
+        <div class="sheet-label">朝代</div>
         <nav class="era-bar" aria-label="历史朝代筛选"></nav>
       </div>
       <div class="map-tools">
-        <button class="icon-btn sound-toggle" title="金石声律切换"><span class="sound-icon">${isSoundEnabled() ? '🎵' : '🔇'}</span></button>
-        <button class="icon-btn" data-z="in" title="放大">＋</button>
-        <button class="icon-btn" data-z="out" title="缩小">－</button>
-        <button class="icon-btn" data-z="reset" title="复位">◎</button>
+        <button class="icon-btn sound-toggle" type="button" title="金石声律切换" aria-label="金石声律" aria-pressed="${isSoundEnabled()}"><span class="sound-icon" aria-hidden="true">${isSoundEnabled() ? '🎵' : '🔇'}</span></button>
+        <button class="icon-btn" type="button" data-z="in" title="放大" aria-label="放大舆图">＋</button>
+        <button class="icon-btn" type="button" data-z="out" title="缩小" aria-label="缩小舆图">－</button>
+        <button class="icon-btn" type="button" data-z="reset" title="复位" aria-label="复位舆图视野">◎</button>
       </div>
       <aside class="roster-drawer" aria-hidden="true">
         <div class="rd-head">
@@ -176,6 +193,7 @@ export function renderMap(root) {
   const svg = view.querySelector('.map-svg');
   const world = svgEl('g', {}, svg);
   const overlay = svgEl('g', {}, svg);
+  const clusterLayer = svgEl('g', { class: 'cluster-layer' }, svg);
   const markerLayer = svgEl('g', {}, svg);
   const focusLayer = svgEl('g', { style: 'pointer-events:none' }, svg);
   let pop = null;
@@ -202,9 +220,19 @@ export function renderMap(root) {
     svgEl('path', { class: 'map-river', d: smooth(pts) }, world);
   }
 
+  const loadingEl = view.querySelector('.map-loading');
+  const finishLoading = () => {
+    view.classList.add('map-ready');
+    loadingEl.classList.add('done');
+    setTimeout(() => loadingEl.remove(), 700);
+  };
   loadGeo().then((d) => {
     land.setAttribute('d', d);
     shadow.setAttribute('d', d);
+    finishLoading();
+  }).catch(() => {
+    loadingEl.querySelector('.ml-text').textContent = '舆图展卷失败 · 请刷新重试';
+    view.classList.add('map-ready');
   });
 
   // 屏幕层：古九州水印、山形、地理注记
@@ -231,7 +259,10 @@ export function renderMap(root) {
   const markers = ENTITIES.map((f, i) => {
     const roleColor = ROLE_META[f.role]?.color || '#a8322d';
     const isSite = f.kind === 'site';
-    const g = svgEl('g', { class: `marker ${isSite ? 'is-site' : 'is-figure'}`, tabindex: 0 }, markerLayer);
+    const g = svgEl('g', {
+      class: `marker ${isSite ? 'is-site' : 'is-figure'}`, tabindex: -1, role: 'button',
+      'aria-label': `${f.name} · ${isSite ? f.role : f.dynasty} · ${f.place}`,
+    }, markerLayer);
 
     // 点击热区
     svgEl('circle', { class: 'm-hit', r: 13, fill: 'transparent' }, g);
@@ -263,9 +294,38 @@ export function renderMap(root) {
       e.stopPropagation();
       openPop(f, g);
     });
-    g.addEventListener('keydown', (e) => e.key === 'Enter' && openPop(f, g));
+    g.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPop(f, g); }
+    });
     return mObj;
   });
+
+  // 聚合印记：同屏过密的标记合并为「数字圆」，点击放大展开
+  const clusterPool = [];
+  function clusterEl(i) {
+    if (clusterPool[i]) return clusterPool[i];
+    const g = svgEl('g', { class: 'cluster', tabindex: 0, role: 'button' }, clusterLayer);
+    svgEl('circle', { class: 'c-halo', r: 17 }, g);
+    svgEl('circle', { class: 'c-body', r: 12.5 }, g);
+    const t = svgEl('text', { class: 'c-num', 'text-anchor': 'middle', y: 4.5 }, g);
+    const title = svgEl('title', {}, g);
+    const go = (e) => { e.stopPropagation(); if (!moved && g._members) zoomToMembers(g._members); };
+    g.addEventListener('click', go);
+    g.addEventListener('keydown', (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), go(e)));
+    g.addEventListener('pointerdown', (e) => e.stopPropagation());
+    clusterPool[i] = { g, t, title };
+    return clusterPool[i];
+  }
+  function zoomToMembers(members) {
+    userMoved = true;
+    closePop();
+    const xs = members.map((m) => m.p[0]), ys = members.map((m) => m.p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const vw = W() - rightInset();
+    const fitK = Math.min((vw - 220) / Math.max(1, x1 - x0), (H() - 280) / Math.max(1, y1 - y0));
+    const k = clampK(Math.min(state.k * 4, Math.max(state.k * 1.8, fitK)));
+    animateTo({ k, x: vw / 2 - ((x0 + x1) / 2) * k, y: H() / 2 - ((y0 + y1) / 2) * k }, 560);
+  }
 
   function layout() {
     const { k, x, y } = state;
@@ -329,6 +389,55 @@ export function renderMap(root) {
       focusGroup.setAttribute('opacity', '0');
     }
 
+    // 聚合：以屏幕距离贪心合并（悬停/选中/未选印记不参与）
+    const CLUSTER_R = 22;
+    const clusters = [];
+    const clustered = new Set();
+    if (zoomRatio < 6) {
+      const cand = markers.filter((m) => !m.g.classList.contains('dim') && !m.hovered && !m.g.classList.contains('active'));
+      for (const m of cand) {
+        if (clustered.has(m)) continue;
+        const members = cand.filter((o) => !clustered.has(o) && Math.abs(o.sx - m.sx) < CLUSTER_R && Math.abs(o.sy - m.sy) < CLUSTER_R && Math.hypot(o.sx - m.sx, o.sy - m.sy) < CLUSTER_R);
+        if (members.length >= 3) {
+          members.forEach((o) => clustered.add(o));
+          clusters.push(members);
+        }
+      }
+    }
+    // 二次合并：中心过近的聚合圆彼此遮挡，合为一个
+    const centroid = (ms) => [ms.reduce((a, m) => a + m.sx, 0) / ms.length, ms.reduce((a, m) => a + m.sy, 0) / ms.length];
+    for (let merged = true; merged;) {
+      merged = false;
+      outer: for (let i = 0; i < clusters.length; i++) {
+        for (let j = i + 1; j < clusters.length; j++) {
+          const [ax, ay] = centroid(clusters[i]), [bx, by] = centroid(clusters[j]);
+          if (Math.hypot(ax - bx, ay - by) < 30) {
+            clusters[i] = clusters[i].concat(clusters[j]);
+            clusters.splice(j, 1);
+            merged = true;
+            break outer;
+          }
+        }
+      }
+    }
+    markers.forEach((m) => m.g.classList.toggle('clustered', clustered.has(m)));
+    clusters.forEach((members, i) => {
+      const c = clusterEl(i);
+      const [cx, cy] = centroid(members);
+      c.g._members = members;
+      c.g.style.display = '';
+      c.g.setAttribute('transform', `translate(${cx.toFixed(1)} ${cy.toFixed(1)})`);
+      c.t.textContent = members.length;
+      const names = members.slice(0, 6).map((m) => m.f.name).join('、');
+      c.title.textContent = `${names}${members.length > 6 ? ' 等' : ''} ${members.length} 处 · 点击展开`;
+      c.g.setAttribute('aria-label', c.title.textContent);
+      boxes.push([cx - 18, cy - 18, cx + 18, cy + 18]);
+    });
+    for (let i = clusters.length; i < clusterPool.length; i++) {
+      clusterPool[i].g.style.display = 'none';
+      clusterPool[i].g._members = null;
+    }
+
     const order = [...markers].sort((a, b) => {
       const aPri = (a.hovered || a.g.classList.contains('active')) ? 2 : a.g.classList.contains('dim') ? 0 : 1;
       const bPri = (b.hovered || b.g.classList.contains('active')) ? 2 : b.g.classList.contains('dim') ? 0 : 1;
@@ -338,7 +447,7 @@ export function renderMap(root) {
     for (const m of order) {
       const isDim = m.g.classList.contains('dim');
       const isFocus = m.hovered || m.g.classList.contains('active');
-      if (isDim && !isFocus) {
+      if ((isDim && !isFocus) || clustered.has(m)) {
         m.label.style.opacity = 0;
         m.sub.style.opacity = 0;
         continue;
@@ -346,29 +455,65 @@ export function renderMap(root) {
       const w = m.f.name.length * 14.5 + 32;
       const box = [m.sx + 6 - padX, m.sy - 10 - padY, m.sx + 6 + w + padX, m.sy + 8 + padY];
       const hit = boxes.some((b) => !(box[2] < b[0] || box[0] > b[2] || box[3] < b[1] || box[1] > b[3]));
-      const show = isFocus || !hit || zoomRatio > 4.0;
+      const show = isFocus || !hit;
       m.label.style.opacity = show ? 1 : 0;
       m.sub.style.opacity = show && (isFocus || zoomRatio > 1.35) ? 0.85 : 0;
       if (show) boxes.push(box);
     }
+    // 键盘 Tab 仅停留在视口内、可见且未被聚合的印记上，避免 161 个焦点
+    const vw = W(), vh = H();
+    for (const m of markers) {
+      const reachable = m.sx > 0 && m.sx < vw && m.sy > 0 && m.sy < vh && !clustered.has(m) && !m.g.classList.contains('dim');
+      const ti = reachable ? '0' : '-1';
+      if (m.g.getAttribute('tabindex') !== ti) m.g.setAttribute('tabindex', ti);
+    }
     if (pop && pop._m) placePop(pop._m);
   }
 
+  // 名录抽屉在宽屏下常驻右侧时，地图可视区域需扣除其宽度
+  const rightInset = () => {
+    const d = view.querySelector('.roster-drawer');
+    return d && d.classList.contains('open') && window.innerWidth > 760 ? d.offsetWidth : 0;
+  };
+  // 用户是否手动平移/缩放过：未动过时尺寸变化自动重新居中，动过则保持视觉中心
+  let userMoved = false;
+  let lastSize = { w: 0, h: 0 };
+
   function fitView() {
+    if (W() <= 0 || H() <= 0) return { ...(fit || state) };
     const [x0, y0] = project(73, 54), [x1] = project(135, 40), [, y1] = project(110, 17.5);
     const xl = project(73, 40)[0];
     const bw = x1 - xl, bh = y1 - y0;
-    const k = Math.min((W() - 80) / bw, (H() - 165) / bh);
+    // 为顶部标识与底部筛选预留的纵向空间；矮屏（横屏手机）筛选已收为面板，少留一些
+    const reserveY = H() < 500 ? 70 : 165;
+    const k = Math.min((W() - 80) / bw, (H() - reserveY) / bh);
     fit = { k, x: (W() - bw * k) / 2 - xl * k, y: (H() - bh * k) / 2 - y0 * k + 6 };
     return { ...fit };
   }
 
-  state = saved ? { ...saved } : fitView();
-  if (!fit) fitView();
-  layout();
+  function initView() {
+    if (W() <= 0 || H() <= 0) return false;
+    fitView();
+    if (saved) {
+      // 恢复上次视图，并按视口尺寸差平移，保持原先的视觉中心
+      state = {
+        k: saved.state.k,
+        x: saved.state.x + (W() - saved.w) / 2,
+        y: saved.state.y + (H() - saved.h) / 2,
+      };
+      userMoved = saved.userMoved;
+    } else {
+      state = { ...fit };
+    }
+    lastSize = { w: W(), h: H() };
+    return true;
+  }
+  let ready = initView();
+  if (ready) layout();
 
   const clampK = (k) => Math.max(fit.k * 0.7, Math.min(fit.k * 10, k));
   function zoomAt(px, py, factor, animate = false) {
+    userMoved = true;
     const k2 = clampK(state.k * factor);
     const f = k2 / state.k;
     const target = { k: k2, x: px - (px - state.x) * f, y: py - (py - state.y) * f };
@@ -392,8 +537,9 @@ export function renderMap(root) {
   function flyToFigure(f) {
     const m = markers.find((item) => item.f.id === f.id);
     if (!m) return;
+    userMoved = true;
     const targetK = Math.max(state.k, fit.k * 2.8);
-    const targetX = W() / 2 - m.p[0] * targetK;
+    const targetX = (W() - rightInset()) / 2 - m.p[0] * targetK;
     const targetY = H() / 2 - m.p[1] * targetK;
     animateTo({ k: targetK, x: targetX, y: targetY }, 600, () => {
       openPop(f, m.g);
@@ -435,6 +581,7 @@ export function renderMap(root) {
     const dx = e.clientX - start.x, dy = e.clientY - start.y;
     if (!moved && Math.hypot(dx, dy) > 6) {
       moved = true;
+      userMoved = true;
       svg.classList.add('dragging');
     }
     if (moved) {
@@ -481,6 +628,7 @@ export function renderMap(root) {
       const on = toggleSound();
       soundBtn.querySelector('.sound-icon').textContent = on ? '🎵' : '🔇';
       soundBtn.title = on ? '金石声律已开' : '金石声律已静音';
+      soundBtn.setAttribute('aria-pressed', String(on));
     };
   }
 
@@ -488,7 +636,7 @@ export function renderMap(root) {
     const z = e.target.closest('button')?.dataset.z;
     if (z === 'in') zoomAt(W() / 2, H() / 2, 1.6, true);
     if (z === 'out') zoomAt(W() / 2, H() / 2, 1 / 1.6, true);
-    if (z === 'reset') animateTo(fitView());
+    if (z === 'reset') { userMoved = false; animateTo(fitView()); }
   });
 
   // 顶部图层切换与筛选
@@ -496,6 +644,17 @@ export function renderMap(root) {
   const eraBar = view.querySelector('.era-bar');
   const roleBar = view.querySelector('.role-bar');
   const visibleCountEl = view.querySelector('.visible-count');
+  const dimToggle = view.querySelector('.dim-toggle');
+  const syncDimToggle = () => {
+    dimToggle.setAttribute('aria-pressed', String(savedHideDim));
+    dimToggle.textContent = savedHideDim ? '淡显未选' : '隐去未选';
+  };
+  syncDimToggle();
+  dimToggle.onclick = () => {
+    savedHideDim = !savedHideDim;
+    syncDimToggle();
+    view.classList.toggle('hide-dim', savedHideDim);
+  };
 
   kindSwitch.querySelectorAll('button').forEach((btn) => {
     btn.onclick = () => {
@@ -538,6 +697,7 @@ export function renderMap(root) {
 
   function applyFilters() {
     kindSwitch.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.kind === savedKind));
+    requestAnimationFrame(updateFades);
     [...eraBar.children].forEach((b) => b.classList.toggle('on', b.dataset.era === savedEra));
     roleBar.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.role === savedRole));
 
@@ -551,9 +711,18 @@ export function renderMap(root) {
       m.g.classList.toggle('dim', !ok);
     });
     visibleCountEl.textContent = shown;
+    const filtering = savedKind !== 'all' || savedEra !== '全部' || savedRole !== '全部';
+    dimToggle.hidden = !filtering;
+    const nActive = (savedEra !== '全部') + (savedRole !== '全部');
+    fabBadge.hidden = !nActive;
+    fabBadge.textContent = nActive ? `${shown}` : '';
+    fab.classList.toggle('on', !!nActive);
+    view.classList.toggle('hide-dim', filtering && savedHideDim);
+    view.classList.toggle('few-shown', filtering && shown <= 30);
     closePop();
     layout();
-    renderRosterList();
+    // 名录抽屉关闭时不渲染（避免每次筛选都重建 161 条带画像的条目）
+    if (drawer.classList.contains('open')) renderRosterList();
   }
 
   // 名录抽屉与全文检索
@@ -561,16 +730,71 @@ export function renderMap(root) {
   const searchInput = view.querySelector('.rd-search');
   const listEl = view.querySelector('.rd-list');
 
-  view.querySelector('.roster-trigger').onclick = () => {
+  const rosterTrigger = view.querySelector('.roster-trigger');
+  const openDrawer = () => {
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden', 'false');
     renderRosterList();
+    setTimeout(() => searchInput.focus({ preventScroll: true }), 60);
   };
-  view.querySelector('.rd-close').onclick = () => {
+  const closeDrawer = () => {
+    if (!drawer.classList.contains('open')) return;
     drawer.classList.remove('open');
     drawer.setAttribute('aria-hidden', 'true');
+    if (drawer.contains(document.activeElement)) rosterTrigger.focus();
   };
-  searchInput.addEventListener('input', renderRosterList);
+  rosterTrigger.onclick = () => (drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+  view.querySelector('.rd-close').onclick = closeDrawer;
+  searchInput.addEventListener('input', () => { kbIndex = -1; renderRosterList(); });
+
+  // 名录键盘操作：↑↓ 选择、回车飞往、Esc 收起
+  let kbIndex = -1;
+  const setKb = (i) => {
+    const items = [...listEl.querySelectorAll('.rd-item')];
+    if (!items.length) return;
+    kbIndex = Math.max(0, Math.min(items.length - 1, i));
+    items.forEach((b, j) => b.classList.toggle('kb', j === kbIndex));
+    items[kbIndex].scrollIntoView({ block: 'nearest' });
+  };
+  drawer.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setKb(kbIndex + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setKb(kbIndex - 1); }
+    else if (e.key === 'Enter' && e.target === searchInput) {
+      e.preventDefault();
+      const items = listEl.querySelectorAll('.rd-item');
+      (items[kbIndex >= 0 ? kbIndex : 0])?.click();
+    } else if (e.key === 'Escape') { e.stopPropagation(); closeDrawer(); }
+  });
+  // 全局快捷键：/ 打开名录检索，Esc 关闭浮卡/面板
+  const onGlobalKey = (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+    if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !document.querySelector('.modal-backdrop')) {
+      e.preventDefault();
+      openDrawer();
+    } else if (e.key === 'Escape' && !typing) {
+      if (view.classList.contains('sheet-open')) setSheet(false);
+      else if (pop) closePop();
+    }
+  };
+  document.addEventListener('keydown', onGlobalKey);
+
+  // 手机端：筛选栏收为底部弹出面板
+  const fab = view.querySelector('.filter-fab');
+  const fabBadge = view.querySelector('.ff-badge');
+  const sheetBackdrop = view.querySelector('.sheet-backdrop');
+  function setSheet(open) {
+    view.classList.toggle('sheet-open', open);
+    sheetBackdrop.hidden = !open;
+    fab.setAttribute('aria-expanded', String(open));
+    if (open) { closePop(); requestAnimationFrame(updateFades); }
+  }
+  fab.onclick = () => setSheet(!view.classList.contains('sheet-open'));
+  sheetBackdrop.onclick = () => setSheet(false);
+  view.querySelector('.sheet-done').onclick = () => setSheet(false);
+  view.querySelector('.sheet-reset').onclick = () => {
+    savedEra = '全部'; savedRole = '全部';
+    applyFilters();
+  };
 
   function renderRosterList() {
     const q = searchInput.value.trim().toLowerCase();
@@ -591,6 +815,7 @@ export function renderMap(root) {
     });
 
     if (!filtered.length) {
+      kbIndex = -1;
       listEl.innerHTML = `<div class="rd-empty">未寻得匹配的先贤或古迹，可尝试调整筛选条件。</div>`;
       return;
     }
@@ -622,13 +847,31 @@ export function renderMap(root) {
         const fig = ENTITIES.find((f) => f.id === btn.dataset.fid);
         if (!fig) return;
         playZither('jiao');
-        if (window.innerWidth <= 760) {
-          drawer.classList.remove('open');
-        }
+        if (window.innerWidth <= 760) closeDrawer();
         flyToFigure(fig);
       };
     });
   }
+
+  // 筛选栏可横向滑动时，在可继续滑动的一侧显示渐隐遮罩
+  const updateFade = (bar) => {
+    const max = bar.scrollWidth - bar.clientWidth;
+    bar.classList.toggle('fade-l', max > 2 && bar.scrollLeft > 2);
+    bar.classList.toggle('fade-r', max > 2 && bar.scrollLeft < max - 2);
+  };
+  const updateFades = () => { updateFade(roleBar); updateFade(eraBar); };
+  [roleBar, eraBar].forEach((bar) => {
+    bar.addEventListener('scroll', () => updateFade(bar), { passive: true });
+    // 桌面端鼠标滚轮纵向滚动转为横向滑动
+    bar.addEventListener('wheel', (e) => {
+      if (bar.scrollWidth <= bar.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      bar.scrollLeft += e.deltaY;
+    }, { passive: false });
+  });
+  const barRo = new ResizeObserver(updateFades);
+  barRo.observe(roleBar);
+  barRo.observe(eraBar);
 
   rebuildRoleBar();
   applyFilters();
@@ -664,15 +907,20 @@ export function renderMap(root) {
         <div class="fp-actions">
           <a class="btn zhu" href="#/tomb/${f.id}">${isSite ? '凭吊遗址' : '拜谒墓园'}</a>
           <a class="btn" href="#/life/${f.id}">${isSite ? '遗址考略' : '生平事迹'}</a>
-          ${!isSite ? `<a class="btn fp-talk-btn" href="#/talk/${f.id}">古今对话</a>` : ''}
+          <a class="btn fp-talk-btn" href="#/talk/${f.id}">${isSite ? '时空回响' : '古今对话'}</a>
         </div>
       </div>`);
 
     pop._m = markers.find((m) => m.g === g);
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', `${f.name} · ${isSite ? '古迹' : '先贤'}简介`);
+    // 由键盘打开时把焦点移入浮卡，关闭后归还
+    pop._return = document.activeElement === g ? g : null;
     pop.querySelector('.fp-close').onclick = closePop;
     pop.addEventListener('pointerdown', (e) => e.stopPropagation());
     view.appendChild(pop);
     placePop(pop._m);
+    if (pop._return) pop.querySelector('.fp-actions a')?.focus({ preventScroll: true });
 
     api.counts().then(({ counts, offeringCounts }) => {
       const nc = counts?.[f.id] || 0;
@@ -688,7 +936,9 @@ export function renderMap(root) {
     if (window.innerWidth <= 760) return;
     const pw = 325, ph = pop.offsetHeight || 260;
     let left = m.sx + 24, top = m.sy - ph / 2;
-    if (left + pw > W() - 16) left = m.sx - pw - 24;
+    const maxRight = W() - rightInset() - 16;
+    if (left + pw > maxRight) left = m.sx - pw - 24;
+    left = Math.max(16, left);
     top = Math.max(16, Math.min(H() - ph - 115, top));
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
@@ -696,21 +946,42 @@ export function renderMap(root) {
 
   function closePop() {
     if (!pop) return;
+    const ret = pop._return;
+    const hadFocus = pop.contains(document.activeElement);
     pop.remove();
+    if (ret && hadFocus && ret.isConnected) ret.focus({ preventScroll: true });
     pop = null;
     markers.forEach((m) => m.g.classList.remove('active'));
     layout();
   }
 
-  const onResize = () => { fitView(); layout(); };
-  window.addEventListener('resize', onResize);
+  // 尺寸变化（首屏容器尚未布局、窗口缩放、手机横竖屏切换）
+  const onResize = () => {
+    const w = W(), h = H();
+    if (w <= 0 || h <= 0) return;
+    if (!ready) { ready = initView(); layout(); return; }
+    if (w === lastSize.w && h === lastSize.h) return;
+    fitView();
+    if (!userMoved) {
+      cancelAnimationFrame(raf);
+      state = { ...fit };
+    } else {
+      state = { ...state, x: state.x + (w - lastSize.w) / 2, y: state.y + (h - lastSize.h) / 2 };
+    }
+    lastSize = { w, h };
+    layout();
+  };
+  const ro = new ResizeObserver(onResize);
+  ro.observe(svg);
 
   return () => {
-    saved = { ...state };
+    if (ready) saved = { state: { ...state }, w: lastSize.w, h: lastSize.h, userMoved };
     cancelAnimationFrame(raf);
+    ro.disconnect();
+    barRo.disconnect();
+    document.removeEventListener('keydown', onGlobalKey);
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onUp);
-    window.removeEventListener('resize', onResize);
   };
 }

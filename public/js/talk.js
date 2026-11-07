@@ -8,6 +8,9 @@ export function renderTalk(root, fig) {
   document.body.classList.add('dark');
   const isSite = fig.kind === 'site';
   const spanYears = yearsApart(fig.death);
+  const nowYear = new Date().getFullYear();
+  const ganzhi = '甲乙丙丁戊己庚辛壬癸'[((nowYear - 4) % 10 + 10) % 10] + '子丑寅卯辰巳午未申酉戌亥'[((nowYear - 4) % 12 + 12) % 12];
+  const storeKey = `huaigu_talk_${fig.id}`;
   const view = html(`
     <section class="view talk-view">
       <canvas class="talk-bg"></canvas>
@@ -22,18 +25,22 @@ export function renderTalk(root, fig) {
             <span class="bse-icon">卷</span>
             <span class="bse-text">结为手卷</span>
           </button>
+          <button class="btn ghost-light btn-scroll-export btn-new-talk" type="button" title="另起一谈：清空本次对话，重新开谈" aria-label="另起一谈" hidden>
+            <span class="bse-icon">新</span>
+          </button>
         </div>
         <div class="talk-span">
           <span>${esc(fig.dynasty)} · ${esc(fig.years.split('—')[1] || fig.years)}</span>
           <i></i>
           <em>${isSite ? '千秋胜迹' : `相隔 ${spanYears} 载`}</em>
           <i></i>
-          <span>公元 2026</span>
+          <span>公元 ${nowYear}</span>
         </div>
         <div class="talk-who">
           <div class="talk-who-text">
             <b>${esc(fig.name)}</b>
             <small>${esc(fig.zi || fig.title)}</small>
+            <span class="talk-status" hidden title="对话服务暂未接通，故人只能以预置之语回响">离线回响</span>
           </div>
           ${renderPortraitHtml(fig, 'dialogue')}
         </div>
@@ -50,7 +57,7 @@ export function renderTalk(root, fig) {
           </div>
           <form class="talk-input">
             <textarea rows="1" maxlength="500" placeholder="${isSite ? `面对千载胜迹，题留感怀之语……` : `隔着 ${spanYears} 年光阴，对${esc(fig.name)}说句话……`}"></textarea>
-            <button type="submit" class="send-btn" title="发送">问</button>
+            <button type="submit" class="send-btn" title="发送" aria-label="发送">问</button>
           </form>
           <div class="talk-note">AI 模拟古人神韵 · 仅供怀古遣兴</div>
         </div>
@@ -67,9 +74,42 @@ export function renderTalk(root, fig) {
   const suggests = view.querySelector('.suggests');
   const exportBtn = view.querySelector('.btn-scroll-export');
 
+  const newBtn = view.querySelector('.btn-new-talk');
+  const statusEl = view.querySelector('.talk-status');
+
   const history = [];
   let busy = false;
   let ctrl = null;
+  let offlineNoted = false;
+
+  // 对话记录按人物保存在本机，离开再回来可接着聊
+  const save = () => {
+    try { localStorage.setItem(storeKey, JSON.stringify(history.slice(-40))); } catch {}
+    newBtn.hidden = history.length <= 1;
+  };
+  const load = () => {
+    try {
+      const arr = JSON.parse(localStorage.getItem(storeKey) || '[]');
+      return Array.isArray(arr) ? arr.filter((m) => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'assistant')) : [];
+    } catch { return []; }
+  };
+
+  // 未接通对话服务时：顶部标记 + 一次性说明
+  function markOffline() {
+    statusEl.hidden = false;
+    if (offlineNoted) return;
+    offlineNoted = true;
+    inner.appendChild(html(`<div class="msg system">对话服务此刻未接通，${esc(fig.name)}只能以预置之语回响；接通后即可畅谈。</div>`));
+  }
+
+  // 发送 / 中止 按钮状态
+  const setBusy = (b) => {
+    busy = b;
+    sendBtn.textContent = b ? '止' : '问';
+    sendBtn.title = b ? '中止回答' : '发送';
+    sendBtn.setAttribute('aria-label', sendBtn.title);
+    sendBtn.classList.toggle('stop', b);
+  };
 
   const scrollBottom = () => { logEl.scrollTop = logEl.scrollHeight; };
 
@@ -91,15 +131,37 @@ export function renderTalk(root, fig) {
     scrollBottom();
   }
 
-  // 开场白
-  appendAncient(fig.greeting);
-  history.push({ role: 'assistant', content: fig.greeting });
+  // 开场白（或恢复上次的对话）
+  const restored = load();
+  if (restored.length > 1) {
+    restored.forEach((m) => (m.role === 'user' ? appendModern(m.content) : appendAncient(m.content)));
+    history.push(...restored);
+    inner.appendChild(html(`<div class="msg system">—— 以上为前次对谈 ——</div>`));
+    requestAnimationFrame(scrollBottom);
+    const asked = new Set(restored.filter((m) => m.role === 'user').map((m) => m.content));
+    suggests.querySelectorAll('button').forEach((b) => asked.has(b.textContent) && b.remove());
+    newBtn.hidden = false;
+  } else {
+    appendAncient(fig.greeting);
+    history.push({ role: 'assistant', content: fig.greeting });
+  }
+  newBtn.onclick = () => {
+    if (busy && ctrl) ctrl.abort();
+    try { localStorage.removeItem(storeKey); } catch {}
+    history.length = 0;
+    inner.innerHTML = '';
+    offlineNoted = false;
+    appendAncient(fig.greeting);
+    history.push({ role: 'assistant', content: fig.greeting });
+    suggests.innerHTML = (fig.questions || []).map((q) => `<button type="button">${esc(q)}</button>`).join('');
+    newBtn.hidden = true;
+    ta.focus();
+  };
 
   async function ask(text) {
     const msg = text.trim();
     if (!msg || busy) return;
-    busy = true;
-    sendBtn.disabled = true;
+    setBusy(true);
     ta.value = '';
     ta.style.height = 'auto';
     appendModern(msg);
@@ -117,6 +179,7 @@ export function renderTalk(root, fig) {
 
     ctrl = new AbortController();
     let full = '';
+    let aborted = false;
     try {
       let resp;
       try {
@@ -157,6 +220,7 @@ export function renderTalk(root, fig) {
             if (!line) continue;
             try {
               const ev = JSON.parse(line);
+              if (ev.fallback) markOffline();
               if (ev.delta) {
                 if (thinkEl.parentNode) thinkEl.remove();
                 full += ev.delta;
@@ -175,8 +239,8 @@ export function renderTalk(root, fig) {
         const years = fig.years ? `，${fig.years}` : '';
         const place = fig.place ? `，位于${fig.place}` : '';
         const identityIntro = isSite
-          ? `你现在是中华历史名胜古迹「${name}」${zi}${dynasty}${place}的千年守灵人与历史回响。对面坐着一位来自公元2026年前来凭吊的今人。`
-          : `你现在就是${name}${zi}${dynasty}${years}。你的魂灵被一阵穿越时空的风带到了「古今对话空间」，对面坐着一位来自公元2026年的今人。`;
+          ? `你现在是中华历史名胜古迹「${name}」${zi}${dynasty}${place}的千年守灵人与历史回响。对面坐着一位来自公元${nowYear}年前来凭吊的今人。`
+          : `你现在就是${name}${zi}${dynasty}${years}。你的魂灵被一阵穿越时空的风带到了「古今对话空间」，对面坐着一位来自公元${nowYear}年的今人。`;
 
         const systemPrompt = `【角色扮演 · 古今对话空间】
 ${identityIntro}
@@ -239,18 +303,24 @@ ${identityIntro}
         }
       }
     } catch (e) {
-      if (e.name !== 'AbortError' && !full) {
+      if (e.name === 'AbortError') aborted = true;
+      else if (!full) {
+        markOffline();
         full = `（松风微动）……${fig.motto} 今夕时空稍有阻隔，君不妨再问一言。`;
       }
     } finally {
       if (thinkEl.parentNode) thinkEl.remove();
+      if (aborted && full.trim()) full = full.trim() + '……';
       txtEl.textContent = full.trim();
       if (full.trim()) {
         history.push({ role: 'user', content: msg });
         history.push({ role: 'assistant', content: full.trim() });
+        save();
+      } else if (aborted) {
+        replyEl.remove();
       }
-      busy = false;
-      sendBtn.disabled = false;
+      ctrl = null;
+      setBusy(false);
       scrollBottom();
     }
   }
@@ -275,6 +345,7 @@ ${identityIntro}
   });
   form.onsubmit = (e) => {
     e.preventDefault();
+    if (busy) { ctrl?.abort(); return; }
     ask(ta.value);
   };
 
@@ -305,7 +376,7 @@ ${identityIntro}
           <div class="sh-head">
             <span class="sh-seal">千秋怀古</span>
             <h3>《与${esc(fig.name)}论道手卷》</h3>
-            <p class="sh-meta">${esc(fig.dynasty)} · ${isSite ? '千秋胜迹' : `相隔 ${spanYears} 载`} · 岁次丙午墨记</p>
+            <p class="sh-meta">${esc(fig.dynasty)} · ${isSite ? '千秋胜迹' : `相隔 ${spanYears} 载`} · 岁次${ganzhi}墨记</p>
           </div>
           <div class="sh-body">
             ${items}
