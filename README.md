@@ -54,7 +54,8 @@
         │   ├── palaces.js         # 著名建筑与宫殿遗址（12处）
         │   └── archaeology.js     # 考古文明遗址（12处）
         ├── renderers/             # 【水墨视觉渲染层】
-        │   └── arch-site.js       # 17种名胜古迹专属 SVG 实景渲染器
+        │   ├── ink-kit.js         # 水墨界画笔墨工具（屋顶、台基、封土、碑石、树石等构件）
+        │   └── ink-scene.js       # 29 种陵寝与胜迹的水墨场景构图
         ├── data.js                # 统一数据门面与注册表 (Entity Registry)
         └── app.js / map.js / tomb.js / life.js / talk.js / tree.js / offerings.js / particles.js
 ```

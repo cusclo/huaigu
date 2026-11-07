@@ -418,6 +418,18 @@ a:focus:not(:focus-visible), button:focus:not(:focus-visible) { outline: none; }
 
 /* ---------- 墓园 ---------- */
 .tomb-view { position: absolute; inset: 0; background: #000; overflow: hidden; }
+/* 绢本质感：经纬丝纹 + 四缘年久泛黄的暗角 */
+.tomb-view::before {
+  content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background-image:
+    radial-gradient(ellipse 75% 70% at 50% 45%, transparent 55%, rgba(70, 48, 22, .22) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='s'><feTurbulence type='fractalNoise' baseFrequency='.012 .9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .24  0 0 0 0 .16  0 0 0 .5 -.08'/></filter><filter id='t'><feTurbulence type='fractalNoise' baseFrequency='.9 .012' numOctaves='2' seed='9'/><feColorMatrix values='0 0 0 0 .3  0 0 0 0 .24  0 0 0 0 .16  0 0 0 .4 -.08'/></filter><rect width='100%' height='100%' filter='url(%23s)'/><rect width='100%' height='100%' filter='url(%23t)'/></svg>");
+  mix-blend-mode: multiply; opacity: .55;
+}
+.tomb-view.night::before {
+  background-image: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 50%, rgba(0, 0, 0, .35) 100%);
+  mix-blend-mode: normal; opacity: 1;
+}
 .tomb-view::after {
   content: "";
   position: absolute;
